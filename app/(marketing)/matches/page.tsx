@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export default function Matches(){return <main className="page"><div className="container"><div className="label">Football network</div><h1 className="display">FIND YOUR GAME.</h1><p className="muted">Open matches will appear here once real organizers publish them.</p><div className="empty"><strong>No public matches yet.</strong><br/>Create the first verified match after turf inventory is live.</div><div style={{marginTop:18}}><Link className="btn green" href="/turfs">BOOK A PITCH</Link></div></div></main>}
