@@ -71,7 +71,7 @@ export default function GamePayButton({ gameId, amount }: Props) {
               return;
             }
 
-            window.location.href = `/matches/${gameId}`;
+            window.location.href = `/Payment/Success?gameId=${encodeURIComponent(gameId)}&gamePlayerId=${encodeURIComponent(data.gamePlayerId)}`;
           },
 
           modal: {
