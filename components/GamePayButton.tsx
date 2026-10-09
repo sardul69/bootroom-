@@ -45,7 +45,7 @@ export default function GamePayButton({ gameId, amount }: Props) {
           currency: data.order.currency,
           name: "BOOTROOM",
           description: "Football game player fee",
-          order_id: data.order.Id,
+          order_id: data.order.id,
 
           handler: async function (payment: any) {
             const verifyResponse = await fetch(
