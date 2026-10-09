@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: player, error: joinError } = await supabase.rpc(
+  const { data: player, error: joinError } = await authClient.rpc(
     'join_game',
     {
       p_game_id: game.id,
