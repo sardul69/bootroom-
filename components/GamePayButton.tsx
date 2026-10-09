@@ -41,11 +41,11 @@ export default function GamePayButton({ gameId, amount }: Props) {
       script.onload = () => {
         const razorpay = new window.Razorpay({
           key: data.keyId,
-          amount: data.amount,
-          currency: "INR",
+          amount: data.order.amount,
+          currency: data.order.currency,
           name: "BOOTROOM",
           description: "Football game player fee",
-          order_id: data.orderId,
+          order_id: data.order.Id,
 
           handler: async function (payment: any) {
             const verifyResponse = await fetch(
