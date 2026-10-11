@@ -57,10 +57,16 @@ export default async function GamePage({
     minute: '2-digit',
   });
 
-  const confirmedPlayers =
-    game.game_players?.filter(
-      (player: any) => player.status === 'CONFIRMED'
-    ).length ?? 0;
+const { data: confirmedCount, error: countError } =
+  await supabase.rpc('get_confirmed_player_count', {
+    p_game_id: id,
+  });
+
+if (countError) {
+  throw new Error('Unable to load player count');
+}
+
+const confirmedPlayers = confirmedCount ?? 0;
 
   const spotsLeft = Math.max(
     game.player_capacity - confirmedPlayers,
