@@ -93,7 +93,16 @@ export async function POST(req: Request) {
     .eq('game_player_id', playerRow.id)
     .maybeSingle();
 
-  if (existingPayment?.provider_order_id) {
+    if (existingPayment?.status === 'CAPTURED') {
+    return NextResponse.json(
+      {
+        error: 'Payment already recorded. Do not pay again. Please check your booking.',
+        paymentCaptured: true,
+      },
+      { status: 409 }
+    );
+  }
+    if (existingPayment?.provider_order_id) {
     return NextResponse.json({
       keyId: process.env.RAZORPAY_KEY_ID,
       order: {
