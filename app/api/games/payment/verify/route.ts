@@ -1,12 +1,18 @@
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyRazorpaySignature } from "@/lib/payments/razorpay";
+import {
+  verifyRazorpaySignature,
+  fetchRazorpayOrder,
+  fetchRazorpayPayment,
+} from "@/lib/payments/razorpay";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
     const authClient = await createClient();
-
     const {
       data: { user },
     } = await authClient.auth.getUser();
@@ -18,34 +24,34 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
 
     const {
       gamePlayerId,
       razorpayPaymentId,
       razorpayOrderId,
       razorpaySignature,
-    } = body;
+    } = body ?? {};
 
     if (
-      !gamePlayerId ||
-      !razorpayPaymentId ||
-      !razorpayOrderId ||
-      !razorpaySignature
+      typeof gamePlayerId !== "string" ||
+      typeof razorpayPaymentId !== "string" ||
+      typeof razorpayOrderId !== "string" ||
+      typeof razorpaySignature !== "string"
     ) {
       return NextResponse.json(
-        { error: "Missing payment details" },
+        { error: "Missing or invalid payment details" },
         { status: 400 }
       );
     }
 
-    const validSignature = verifyRazorpaySignature(
-      razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature
-    );
-
-    if (!validSignature) {
+    if (
+      !verifyRazorpaySignature(
+        razorpayOrderId,
+        razorpayPaymentId,
+        razorpaySignature
+      )
+    ) {
       return NextResponse.json(
         { error: "Invalid payment signature" },
         { status: 400 }
@@ -54,18 +60,64 @@ export async function POST(req: Request) {
 
     const supabase = createAdminClient();
 
-    const { data: gamePayment, error: paymentError } = await supabase
-      .from("game_payments")
-      .select("id, game_player_id, user_id, provider_order_id")
-      .eq("game_player_id", gamePlayerId)
-      .eq("user_id", user.id)
-      .eq("provider_order_id", razorpayOrderId)
-      .single();
+    const { data: paymentRecord, error: recordError } =
+      await supabase
+        .from("game_payments")
+        .select(
+          "id, game_player_id, user_id, provider_order_id, amount, status"
+        )
+        .eq("game_player_id", gamePlayerId)
+        .eq("user_id", user.id)
+        .eq("provider_order_id", razorpayOrderId)
+        .maybeSingle();
 
-    if (paymentError || !gamePayment) {
+    if (recordError || !paymentRecord) {
       return NextResponse.json(
-        { error: "Game payment record not found" },
+        { error: "Matching payment record not found" },
         { status: 404 }
+      );
+    }
+
+    const { data: player, error: playerError } =
+      await supabase
+        .from("game_players")
+        .select("id, game_id, user_id, status")
+        .eq("id", gamePlayerId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+    if (playerError || !player) {
+      return NextResponse.json(
+        { error: "Matching player record not found" },
+        { status: 404 }
+      );
+    }
+
+    const [order, payment] = await Promise.all([
+      fetchRazorpayOrder(razorpayOrderId),
+      fetchRazorpayPayment(razorpayPaymentId),
+    ]);
+
+    const expectedAmount = Math.round(
+      Number(paymentRecord.amount) * 100
+    );
+
+    if (
+      !Number.isSafeInteger(expectedAmount) ||
+      expectedAmount <= 0 ||
+      order.id !== razorpayOrderId ||
+      order.amount !== expectedAmount ||
+      order.currency !== "INR" ||
+      payment.id !== razorpayPaymentId ||
+      payment.order_id !== razorpayOrderId ||
+      payment.amount !== expectedAmount ||
+      payment.currency !== "INR" ||
+      payment.status !== "captured" ||
+      payment.captured !== true
+    ) {
+      return NextResponse.json(
+        { error: "Payment does not match the expected captured order" },
+        { status: 409 }
       );
     }
 
@@ -79,20 +131,32 @@ export async function POST(req: Request) {
     );
 
     if (finalizeError) {
-      console.error("Game payment finalization failed:", finalizeError);
+      console.error(
+        "Game payment finalization failed:",
+        finalizeError.message
+      );
 
       return NextResponse.json(
-        { error: "Unable to confirm game payment" },
+        {
+          error:
+            "Payment was verified, but confirmation is pending. Do not pay again.",
+        },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Game payment verification error:", error);
+    console.error(
+      "Game payment verification failed:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
 
     return NextResponse.json(
-      { error: "Payment verification failed" },
+      {
+        error:
+          "Unable to verify payment right now. Do not pay again.",
+      },
       { status: 500 }
     );
   }
