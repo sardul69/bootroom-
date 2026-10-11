@@ -1,21 +1,31 @@
-import type { Metadata } from 'next';
-import './globals.css';
+
+import type { Metadata } from "next";
+import "./globals.css";
+import PlayerNavigation from "@/components/PlayerNavigation";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
-  title: 'BOOTROOM — The pitch is waiting.',
-  description: 'Find and book football turfs in Kolkata. Find your game. Enter the game.',
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "https://www.turfzy.world"
+  ),
+  title: "BOOTROOM — The pitch is waiting.",
+  description:
+    "Find football games in Kolkata. Join the squad and pay only your individual player fee.",
   openGraph: {
-    title: 'BOOTROOM — The pitch is waiting.',
-    description: 'Football turf booking and football community platform.',
-    type: 'website'
-  }
+    title: "BOOTROOM — The pitch is waiting.",
+    description: "Football games and community in Kolkata.",
+    type: "website",
+  },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-IN">
-      <body>{children}</body>
+      <body>
+        {children}
+        <PlayerNavigation />
+      </body>
     </html>
   );
 }
