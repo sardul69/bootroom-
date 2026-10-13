@@ -78,7 +78,7 @@ export default async function Home() {
           fontSize: '11px',
           fontWeight: 800,
         }}>
-          KOLKATA · FOOTBALL COMMUNITY
+          INDIA · FOOTBALL COMMUNITY
         </div>
         <h1 className="display" style={{
           fontSize: 'clamp(48px, 9vw, 100px)',
@@ -103,7 +103,7 @@ export default async function Home() {
           lineHeight: 1.8,
           marginBottom: '30px',
         }}>
-          Find your next match in Kolkata. Join the squad, pay your individual player fee, and get on the pitch.
+          Find your next match in India. Join the squad, pay your individual player fee, and get on the pitch.
         </p>
         <div style={{
           display: 'flex',
@@ -331,7 +331,7 @@ export default async function Home() {
             width={110}
             height={94}
           />
-          <div>BOOTROOM · Kolkata, India</div>
+          <div>BOOTROOM · INDIA </div>
           <div>Football games · Football community</div>
         </div>
       </footer>
