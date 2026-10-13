@@ -60,7 +60,7 @@ export default async function Home() {
             <section className="hero" style={{
       position: 'relative',
       overflow: 'hidden',
-      minHeight: '620px',
+      minHeight: '0',
       display: 'flex',
       alignItems: 'center',
       background: 'radial-gradient(ellipse at 80% 45%, rgba(24, 170, 91, 0.20), transparent 38%), linear-gradient(135deg, #050907 0%, #0b1b12 55%, #061009 100%)',
