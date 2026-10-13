@@ -57,33 +57,117 @@ export default async function Home() {
       </header>
 
       <main>
-        <section className="hero">
-          <div className="container heroContent">
-            <Image
-              className="heroLogo"
-              src="/brand/bootroom-logo.png"
-              alt="BOOTROOM"
-              width={290}
-              height={249}
-              priority
-            />
-
-            <div className="label">KOLKATA · FOOTBALL COMMUNITY</div>
-            <h1 className="display">
-              THE PITCH<br />
-              <span className="gold">IS WAITING.</span>
-            </h1>
-
-            <p className="heroSub">
-              Find a game. Join the squad. Pay only your individual
-              player fee. BOOTROOM brings Kolkata football together.
-            </p>
-
-            <Link className="btn primary" href="/matches">
-              BROWSE GAMES
-            </Link>
+            <section className="hero" style={{
+      position: 'relative',
+      overflow: 'hidden',
+      minHeight: '620px',
+      display: 'flex',
+      alignItems: 'center',
+      background: 'radial-gradient(ellipse at 80% 45%, rgba(24, 170, 91, 0.20), transparent 38%), linear-gradient(135deg, #050907 0%, #0b1b12 55%, #061009 100%)',
+      borderBottom: '1px solid rgba(87, 255, 155, 0.16)',
+    }}>
+      <div className="container heroContent" style={{
+        position: 'relative',
+        zIndex: 2,
+        paddingTop: '90px',
+        paddingBottom: '90px',
+      }}>
+        <div className="label" style={{
+          color: '#78ffad',
+          letterSpacing: '4px',
+          fontSize: '11px',
+          fontWeight: 800,
+        }}>
+          KOLKATA · FOOTBALL COMMUNITY
+        </div>
+        <h1 className="display" style={{
+          fontSize: 'clamp(48px, 9vw, 100px)',
+          lineHeight: 0.98,
+          letterSpacing: '-3px',
+          margin: '24px 0',
+          textShadow: '0 0 35px rgba(43, 255, 128, 0.12)',
+        }}>
+          YOUR CITY.<br />
+          YOUR SQUAD.<br />
+          <span style={{
+            color: '#75ffa8',
+            textShadow: '0 0 30px rgba(65, 255, 140, 0.25)',
+          }}>
+            YOUR GAME.
+          </span>
+        </h1>
+        <p className="heroSub" style={{
+          maxWidth: '520px',
+          color: '#c0d1c5',
+          fontSize: '16px',
+          lineHeight: 1.8,
+          marginBottom: '30px',
+        }}>
+          Find your next match in Kolkata. Join the squad, pay your individual player fee, and get on the pitch.
+        </p>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '12px',
+          alignItems: 'center',
+        }}>
+          <Link className="btn primary" href="/matches">
+            FIND YOUR GAME ↗
+          </Link>
+          <Link className="btn ghost" href="/turfs">
+            EXPLORE TURFS
+          </Link>
+        </div>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '28px',
+          marginTop: '44px',
+          paddingTop: '22px',
+          borderTop: '1px solid rgba(255,255,255,0.12)',
+          maxWidth: '520px',
+        }}>
+          <div>
+            <div style={{ color: '#75ffa8', fontSize: '22px', fontWeight: 900 }}>01</div>
+            <div style={{ color: '#9db2a4', fontSize: '11px', letterSpacing: '1.5px' }}>FIND A MATCH</div>
           </div>
-        </section>
+          <div>
+            <div style={{ color: '#75ffa8', fontSize: '22px', fontWeight: 900 }}>02</div>
+            <div style={{ color: '#9db2a4', fontSize: '11px', letterSpacing: '1.5px' }}>JOIN YOUR SQUAD</div>
+          </div>
+          <div>
+            <div style={{ color: '#75ffa8', fontSize: '22px', fontWeight: 900 }}>03</div>
+            <div style={{ color: '#9db2a4', fontSize: '11px', letterSpacing: '1.5px' }}>OWN THE PITCH</div>
+          </div>
+        </div>
+      </div>
+      <div aria-hidden="true" style={{
+        position: 'absolute',
+        right: '-100px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: 'min(55vw, 580px)',
+        aspectRatio: '1',
+        borderRadius: '50%',
+        border: '1px solid rgba(91, 255, 155, 0.15)',
+        boxShadow: '0 0 80px rgba(20, 200, 100, 0.06), inset 0 0 80px rgba(20, 200, 100, 0.04)',
+        pointerEvents: 'none',
+      }}>
+        <div style={{
+          position: 'absolute',
+          inset: '12%',
+          border: '1px solid rgba(91, 255, 155, 0.12)',
+          borderRadius: '50%',
+        }} />
+        <div style={{
+          position: 'absolute',
+          inset: '27%',
+          border: '1px solid rgba(91, 255, 155, 0.10)',
+          borderRadius: '50%',
+        }} />
+      </div>
+    </section>
+    
 
         <section className="section">
           <div className="container">
