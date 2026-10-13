@@ -13,4 +13,296 @@
 @media(max-width:900px){.navlinks{display:none}.hero{min-height:720px}.searchbar{grid-template-columns:1fr 1fr}.searchbar .wide{grid-column:1/-1}.cards{grid-template-columns:1fr}.steps{grid-template-columns:1fr}.detailGrid{grid-template-columns:1fr}.summary{position:static}.slotGrid{grid-template-columns:repeat(2,1fr)}.owner,.footerGrid{flex-direction:column;align-items:flex-start}.hero h1{font-size:66px}}
 @media(max-width:520px){container{width:min(var(--max),calc(100% - 24px))}.heroContent{padding-top:130px}.heroLogo{width:190px}.searchbar{grid-template-columns:1fr}.searchbar .wide{grid-column:auto}.section{padding:60px 0}.slotGrid{grid-template-columns:1fr 1fr}.btn{padding:11px 12px}}
 .heroLogo{width:220px!important;height:auto!important;object-fit:contain;object-position:center}
-.heroLogo{height:220px!important;object-fit:contain!important;object-position:top!important}
+
+/* TURFZY — FUTURE FOOTBALL EXPERIENCE */
+
+:root {
+  --black: #030806;
+  --charcoal: #09130e;
+  --deep: #0b1e13;
+  --green: #123d25;
+  --grass: #48ff83;
+  --ice: #f0fff5;
+  --mist: #9bb9a5;
+  --gold: #d6ff70;
+  --gold2: #e4ff9a;
+  --line: rgba(143, 255, 177, 0.16);
+  --radius: 18px;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--black);
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(24, 91, 48, 0.2), transparent 48%),
+    var(--black);
+  color: var(--ice);
+}
+
+::selection {
+  background: var(--grass);
+  color: #031008;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+.btn,
+.card,
+.slot,
+.panel,
+.loginCard {
+  transition:
+    border-color 220ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}
+
+.btn {
+  border: 1px solid rgba(143, 255, 177, 0.24);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #12251a, #09130e);
+  color: #f0fff5;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.btn.primary,
+.btn.green {
+  background: linear-gradient(135deg, #65ff99, #27c96b);
+  border-color: #65ff99;
+  color: #031008;
+  box-shadow: 0 0 24px rgba(72, 255, 131, 0.12);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--grass);
+  box-shadow: 0 8px 30px rgba(72, 255, 131, 0.13);
+}
+
+.btn:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--grass);
+  outline-offset: 4px;
+}
+
+.header {
+  background: linear-gradient(
+    180deg,
+    rgba(3, 8, 6, 0.97),
+    rgba(3, 8, 6, 0.72),
+    transparent
+  );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.hero {
+  background:
+    radial-gradient(ellipse at 72% 22%, rgba(72, 255, 131, 0.17), transparent 36%),
+    radial-gradient(ellipse at 20% 70%, rgba(35, 116, 62, 0.18), transparent 42%),
+    linear-gradient(180deg, #06110a, #0a1c10 56%, #030806);
+}
+
+.hero:before {
+  background-size: 64px 64px;
+  opacity: 0.45;
+}
+
+.heroLogo {
+  filter:
+    drop-shadow(0 0 22px rgba(72, 255, 131, 0.14))
+    drop-shadow(0 18px 40px rgba(0, 0, 0, 0.5));
+}
+
+.hero h1 {
+  text-shadow: 0 0 50px rgba(72, 255, 131, 0.08);
+}
+
+.searchbar {
+  background: rgba(4, 13, 8, 0.84);
+  border-color: rgba(143, 255, 177, 0.22);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.searchbar label,
+.field input,
+.toolbar input,
+.toolbar select {
+  border-color: rgba(143, 255, 177, 0.17);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.searchbar label:focus-within,
+.field input:focus,
+.toolbar input:focus,
+.toolbar select:focus {
+  border-color: var(--grass);
+  box-shadow: 0 0 0 3px rgba(72, 255, 131, 0.08);
+  outline: none;
+}
+
+.card,
+.panel {
+  background: linear-gradient(
+    145deg,
+    rgba(15, 35, 22, 0.96),
+    rgba(6, 15, 9, 0.98)
+  );
+  border-color: rgba(143, 255, 177, 0.14);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(72, 255, 131, 0.4);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+}
+
+.cardImage {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(72, 255, 131, 0.16), transparent 65%),
+    linear-gradient(135deg, #123b21, #07100a);
+}
+
+.slot {
+  background: rgba(12, 29, 17, 0.85);
+  border-color: rgba(143, 255, 177, 0.15);
+}
+
+.slot:hover:not(.unavailable) {
+  border-color: var(--grass);
+  background: rgba(72, 255, 131, 0.07);
+}
+
+.slot.selected {
+  border-color: var(--grass);
+  background: rgba(72, 255, 131, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(72, 255, 131, 0.18);
+}
+
+.loginWrap {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 15%, rgba(48, 175, 87, 0.2), transparent 42%),
+    radial-gradient(ellipse at 0% 100%, rgba(30, 110, 55, 0.12), transparent 40%),
+    #030806;
+}
+
+.loginWrap:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.24;
+  background-image:
+    linear-gradient(rgba(143, 255, 177, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(143, 255, 177, 0.055) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
+
+.loginCard {
+  position: relative;
+  overflow: hidden;
+  width: min(460px, 100%);
+  padding: 32px 26px;
+  border: 1px solid rgba(143, 255, 177, 0.22);
+  border-radius: 24px;
+  background: linear-gradient(
+    145deg,
+    rgba(15, 33, 21, 0.94),
+    rgba(5, 13, 8, 0.97)
+  );
+  box-shadow:
+    0 30px 100px rgba(0, 0, 0, 0.42),
+    0 0 45px rgba(72, 255, 131, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.loginCard:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, #48ff83, transparent);
+  opacity: 0.75;
+}
+
+.loginCard img {
+  filter: drop-shadow(0 0 20px rgba(72, 255, 131, 0.12));
+}
+
+.loginCard .display {
+  color: #f0fff5;
+  letter-spacing: -0.055em;
+}
+
+.loginCard .label {
+  color: var(--grass);
+}
+
+.loginCard .field input {
+  width: 100%;
+  min-height: 48px;
+  background: rgba(2, 9, 5, 0.75);
+  border: 1px solid rgba(143, 255, 177, 0.2);
+  border-radius: 12px;
+}
+
+.loginCard .field input::placeholder {
+  color: #688574;
+}
+
+.loginCard .notice {
+  background: rgba(72, 255, 131, 0.055);
+  border-color: rgba(72, 255, 131, 0.2);
+  border-radius: 12px;
+}
+
+@media (max-width: 520px) {
+  .loginCard {
+    padding: 28px 20px;
+    border-radius: 20px;
+  }
+
+  .btn {
+    min-height: 46px;
+  }
+
+  .hero h1 {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+

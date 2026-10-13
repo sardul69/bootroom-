@@ -70,8 +70,31 @@ export default function Login() {
     window.location.assign('/turfs');
   }
   return (
-    <main className="loginWrap">
-      <div className="loginCard">
+    <main
+  className="loginWrap"
+  style={{
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px 16px',
+    background:
+      'radial-gradient(ellipse at 50% 0%, #173d2a 0%, #0b110d 48%, #050706 100%)',
+  }}
+>
+      <div
+  className="loginCard"
+  style={{
+    width: '100%',
+    maxWidth: '440px',
+    boxSizing: 'border-box',
+    padding: '32px 24px',
+    borderRadius: '24px',
+    border: '1px solid rgba(120, 255, 170, 0.22)',
+    background: 'linear-gradient(145deg, rgba(24, 34, 28, 0.98), rgba(8, 12, 9, 0.98))',
+    boxShadow: '0 24px 70px rgba(0, 0, 0, 0.45), 0 0 35px rgba(38, 220, 105, 0.07)',
+  }}
+>
         <Image
           src="/brand/bootroom-logo.png"
           alt="BOOTROOM"
@@ -87,7 +110,7 @@ export default function Login() {
           onClick={google}
           disabled={loading}
         >
-          CONTINUE WITH GOOGLE
+          CONTINUE WITH GOOGLE ↗
         </button>
         <div
           style={{
