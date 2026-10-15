@@ -22,7 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/", icon: "home" },
   { label: "Games", href: "/matches", icon: "games" },
   { label: "Turfs", href: "/turfs", icon: "turfs" },
-  { label: "Players", href: "/players", icon: "players" },
+  { label: "Players", href: "/player", icon: "players" },
   {
     label: "Squad Finder",
     href: "/squad-finder",
