@@ -1604,3 +1604,41 @@ nav[aria-label="Main navigation"] a {
     transition: none;
   }
 }
+
+/* BOOTROOM Owner Console — mobile form overflow fix */
+.royal-game-card,
+.royal-game-card form,
+.royal-game-card label {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.royal-game-card input,
+.royal-game-card select,
+.royal-game-card textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.royal-game-card input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  padding-left: 12px;
+  padding-right: 12px;
+  font-size: 16px;
+}
+
+@media (max-width: 600px) {
+  .royal-game-card {
+    padding: 20px 16px;
+  }
+
+  .royal-game-card input[type="datetime-local"] {
+    font-size: 14px;
+  }
+}
