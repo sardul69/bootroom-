@@ -23,7 +23,6 @@ type PlayerCard = {
   position: string | null;
   preferred_foot: string | null;
   locality: string | null;
-  avatar_url?: string | null;
   overall_rating: number | null;
   pace: number | null;
   shooting: number | null;
@@ -40,14 +39,7 @@ type PlayerCard = {
   is_verified: boolean;
 };
 
-const ATTRIBUTE_FIELDS = [
-  { label: "Pace", key: "pace" },
-  { label: "Shooting", key: "shooting" },
-  { label: "Passing", key: "passing" },
-  { label: "Dribbling", key: "dribbling" },
-  { label: "Defending", key: "defending" },
-  { label: "Physical", key: "physical" },
-] as const;
+const supabase = createClient();
 
 const CARD_FIELDS = [
   { label: "Overall", key: "overall_rating" },
@@ -66,7 +58,17 @@ const CARD_FIELDS = [
 
 type CardNumberField = (typeof CARD_FIELDS)[number]["key"];
 
-const supabase = createClient();
+const ATTRIBUTES = [
+  { label: "Pace", key: "pace" },
+  { label: "Shooting", key: "shooting" },
+  { label: "Passing", key: "passing" },
+  { label: "Dribbling", key: "dribbling" },
+  { label: "Defending", key: "defending" },
+  { label: "Physical", key: "physical" },
+] as const;
+
+const PLAYER_PHOTO_PATH =
+  "/storage/v1/object/public/player-photos/";
 
 function emptyProfile(): Profile {
   return {
@@ -86,9 +88,9 @@ function errorMessage(error: unknown) {
     : "Something went wrong. Please try again.";
 }
 
-function numberOrZero(value: number | null | undefined) {
+function numberOrZero(value: number | null | undefined): number {
   return typeof value === "number" && Number.isFinite(value)
-    ? value
+    ? Math.max(0, value)
     : 0;
 }
 
@@ -96,13 +98,34 @@ function ratingText(value: number | null | undefined) {
   return String(numberOrZero(value)).padStart(2, "0");
 }
 
+/**
+ * Google OAuth avatar URLs are not player-card photos.
+ * Only show images stored in Turfzy's player-photos bucket.
+ */
+function approvedPlayerPhoto(url: string | null | undefined) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol !== "https:" &&
+      parsed.protocol !== "http:"
+    ) {
+      return null;
+    }
+
+    return parsed.pathname.includes(PLAYER_PHOTO_PATH) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PlayerPage() {
   const [userId, setUserId] = useState("");
   const [profile, setProfile] = useState<Profile>(emptyProfile());
   const [card, setCard] = useState<PlayerCard | null>(null);
-  const [directory, setDirectory] = useState<PlayerCard[]>([]);
-  const [selectedId, setSelectedId] = useState("");
   const [isManager, setIsManager] = useState(false);
+
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingCard, setEditingCard] = useState(false);
 
@@ -131,6 +154,7 @@ export default function PlayerPage() {
 
   const [averageRatingDraft, setAverageRatingDraft] = useState("");
   const [verifiedDraft, setVerifiedDraft] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -153,9 +177,7 @@ export default function PlayerPage() {
         setUserId("");
         setProfile(emptyProfile());
         setCard(null);
-        setDirectory([]);
         setIsManager(false);
-        setSelectedId("");
         return;
       }
 
@@ -169,11 +191,13 @@ export default function PlayerPage() {
           )
           .eq("id", user.id)
           .maybeSingle(),
+
         supabase
           .from("player_cards")
           .select("*")
           .eq("profile_id", user.id)
           .maybeSingle(),
+
         supabase.rpc("can_manage_player_cards"),
       ]);
 
@@ -186,6 +210,7 @@ export default function PlayerPage() {
       };
 
       setProfile(currentProfile);
+
       setProfileDraft({
         full_name: currentProfile.full_name ?? "",
         position: currentProfile.position ?? "",
@@ -194,38 +219,13 @@ export default function PlayerPage() {
         skill: currentProfile.skill ?? "",
       });
 
+      const currentCard = (cardResult.data ?? null) as PlayerCard | null;
+      setCard(currentCard);
+
       const manager =
         !managerResult.error && managerResult.data === true;
 
       setIsManager(manager);
-
-      let currentCard = (cardResult.data ?? null) as PlayerCard | null;
-
-      if (manager) {
-        const { data, error: directoryError } = await supabase.rpc(
-          "admin_list_player_cards"
-        );
-
-        if (directoryError) throw directoryError;
-
-        const players = (data ?? []) as PlayerCard[];
-        setDirectory(players);
-
-        currentCard =
-          players.find((player) => player.profile_id === user.id) ??
-          currentCard;
-
-        setSelectedId((previous) =>
-          previous && players.some((player) => player.profile_id === previous)
-            ? previous
-            : user.id
-        );
-      } else {
-        setDirectory([]);
-        setSelectedId(user.id);
-      }
-
-      setCard(currentCard);
 
       if (currentCard) {
         setCardDraft({
@@ -248,10 +248,26 @@ export default function PlayerPage() {
             ? ""
             : String(currentCard.average_rating)
         );
+
         setVerifiedDraft(Boolean(currentCard.is_verified));
       } else {
-        setVerifiedDraft(false);
+        setCardDraft({
+          overall_rating: 0,
+          pace: 0,
+          shooting: 0,
+          passing: 0,
+          dribbling: 0,
+          defending: 0,
+          physical: 0,
+          attack: 0,
+          composure: 0,
+          appearances: 0,
+          goals: 0,
+          assists: 0,
+        });
+
         setAverageRatingDraft("");
+        setVerifiedDraft(false);
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -264,66 +280,34 @@ export default function PlayerPage() {
     void loadPage();
   }, [loadPage]);
 
-  const selectedPlayer = useMemo(
-    () =>
-      directory.find((player) => player.profile_id === selectedId) ??
-      (selectedId === userId && card ? card : null),
-    [directory, selectedId, userId, card]
+  const displayedPhoto = useMemo(
+    () => approvedPlayerPhoto(profile.avatar_url),
+    [profile.avatar_url]
   );
 
-  const viewingOwnProfile = selectedId === userId;
-  const displayedCard =
-    isManager && !viewingOwnProfile ? selectedPlayer : card;
-
-  const displayedName =
-    (isManager && !viewingOwnProfile
-      ? selectedPlayer?.full_name
-      : profile.full_name) || "YOUR NAME";
-
-  const displayedPosition =
-    (isManager && !viewingOwnProfile
-      ? selectedPlayer?.position
-      : profile.position) || "";
-
-  const displayedPhoto = viewingOwnProfile
-    ? profile.avatar_url
-    : selectedPlayer?.avatar_url ?? null;
-
-  const displayedAttributes = ATTRIBUTE_FIELDS.map((attribute) => ({
+  const displayedAttributes = ATTRIBUTES.map((attribute) => ({
     label: attribute.label,
     key: attribute.key,
-    value: numberOrZero(displayedCard?.[attribute.key]),
+    value: numberOrZero(card?.[attribute.key]),
   }));
 
-  function choosePlayer(id: string) {
-    setSelectedId(id);
-    setEditingCard(false);
-    setNotice("");
-    setError("");
+  function updateCardNumber(key: CardNumberField, rawValue: string) {
+    const value = rawValue === "" ? 0 : Number(rawValue);
 
-    const next = directory.find((player) => player.profile_id === id);
+    const isCount =
+      key === "appearances" ||
+      key === "goals" ||
+      key === "assists";
 
-    if (next) {
-      setCardDraft({
-        overall_rating: numberOrZero(next.overall_rating),
-        pace: numberOrZero(next.pace),
-        shooting: numberOrZero(next.shooting),
-        passing: numberOrZero(next.passing),
-        dribbling: numberOrZero(next.dribbling),
-        defending: numberOrZero(next.defending),
-        physical: numberOrZero(next.physical),
-        attack: numberOrZero(next.attack),
-        composure: numberOrZero(next.composure),
-        appearances: numberOrZero(next.appearances),
-        goals: numberOrZero(next.goals),
-        assists: numberOrZero(next.assists),
-      });
+    const max = isCount ? 1000000 : 99;
 
-      setAverageRatingDraft(
-        next.average_rating == null ? "" : String(next.average_rating)
-      );
-      setVerifiedDraft(Boolean(next.is_verified));
-    }
+    setCardDraft((current) => ({
+      ...current,
+      [key]: Math.min(
+        max,
+        Math.max(0, Number.isFinite(value) ? value : 0)
+      ),
+    }));
   }
 
   async function saveProfile() {
@@ -362,8 +346,15 @@ export default function PlayerPage() {
   }
 
   async function saveCard() {
-    if (!isManager || !selectedId) {
-      setError("Only an authorized manager can edit official player cards.");
+    if (!isManager) {
+      setError("Only an authorized manager can edit official player ratings.");
+      return;
+    }
+
+    if (!card) {
+      setError(
+        "An official player-card record does not exist for this account yet. Create it through your authorized manager workflow first."
+      );
       return;
     }
 
@@ -372,13 +363,16 @@ export default function PlayerPage() {
     setNotice("");
 
     try {
-      const average =
-        averageRatingDraft.trim() === ""
-          ? null
-          : Math.min(10, Math.max(0, Number(averageRatingDraft)));
+      let average: number | null = null;
 
-      if (average !== null && !Number.isFinite(average)) {
-        throw new Error("Enter a valid average rating between 0 and 10.");
+      if (averageRatingDraft.trim() !== "") {
+        average = Number(averageRatingDraft);
+
+        if (!Number.isFinite(average)) {
+          throw new Error("Enter a valid average rating from 0 to 10.");
+        }
+
+        average = Math.min(10, Math.max(0, average));
       }
 
       const { data, error: saveError } = await supabase
@@ -388,23 +382,13 @@ export default function PlayerPage() {
           average_rating: average,
           is_verified: verifiedDraft,
         })
-        .eq("profile_id", selectedId)
+        .eq("profile_id", userId)
         .select("*")
         .single();
 
       if (saveError) throw saveError;
 
-      const updatedCard = data as PlayerCard;
-      setCard(updatedCard);
-
-      setDirectory((players) =>
-        players.map((player) =>
-          player.profile_id === selectedId
-            ? { ...player, ...updatedCard }
-            : player
-        )
-      );
-
+      setCard(data as PlayerCard);
       setEditingCard(false);
       setNotice("Official player card saved.");
     } catch (err) {
@@ -412,21 +396,6 @@ export default function PlayerPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function updateCardNumber(key: CardNumberField, rawValue: string) {
-    const value = rawValue === "" ? 0 : Number(rawValue);
-    const isCount =
-      key === "appearances" || key === "goals" || key === "assists";
-    const max = isCount ? 1000000 : 99;
-
-    setCardDraft((current) => ({
-      ...current,
-      [key]: Math.min(
-        max,
-        Math.max(0, Number.isFinite(value) ? value : 0)
-      ),
-    }));
   }
 
   if (loading) {
@@ -448,10 +417,13 @@ export default function PlayerPage() {
               TURFZY<span>®</span>
             </Link>
           </header>
+
           <h1>Sign in to access your player profile.</h1>
+
           <p className="tz-data-note">
             Sign in to your Turfzy account, then return to this page.
           </p>
+
           <Link href="/login" className="tz-outline-button">
             SIGN IN
           </Link>
@@ -460,45 +432,81 @@ export default function PlayerPage() {
     );
   }
 
-  const cardStatRows = [
+  const statRows = [
     [
-      { label: "PAC", value: displayedCard?.pace },
-      { label: "DRI", value: displayedCard?.dribbling },
+      { label: "PAC", value: card?.pace },
+      { label: "DRI", value: card?.dribbling },
     ],
     [
-      { label: "SHO", value: displayedCard?.shooting },
-      { label: "DEF", value: displayedCard?.defending },
+      { label: "SHO", value: card?.shooting },
+      { label: "DEF", value: card?.defending },
     ],
     [
-      { label: "PAS", value: displayedCard?.passing },
-      { label: "PHY", value: displayedCard?.physical },
+      { label: "PAS", value: card?.passing },
+      { label: "PHY", value: card?.physical },
     ],
   ];
 
   return (
-    <main className="tz-player">
+    <main
+      className="tz-player"
+      style={{
+        position: "relative",
+        isolation: "isolate",
+        paddingBottom: "180px",
+      }}
+    >
       <div className="tz-stadium-lights" aria-hidden="true" />
 
-      <div className="tz-player-shell">
+      <div
+        className="tz-player-shell"
+        style={{
+          position: "relative",
+          zIndex: 1,
+          paddingBottom: "120px",
+        }}
+      >
         <header className="tz-player-header">
           <Link href="/" className="tz-player-wordmark">
             TURFZY<span>®</span>
           </Link>
+
           <div className="tz-player-header-right">
             <i /> THE PLAYER CLUB
           </div>
         </header>
 
-        {error && <p className="tz-edit-note" role="alert">{error}</p>}
-        {notice && <p className="tz-data-note" role="status">{notice}</p>}
+        {error && (
+          <p className="tz-edit-note" role="alert">
+            {error}
+          </p>
+        )}
+
+        {notice && (
+          <p className="tz-data-note" role="status">
+            {notice}
+          </p>
+        )}
 
         <div className="tz-player-toolbar">
           <Link href="/" className="tz-back-link">
             ‹ <span>PLAYERS</span>
           </Link>
+
           <button
+            type="button"
             className="tz-outline-button"
             onClick={() => {
+              if (editingProfile) {
+                setProfileDraft({
+                  full_name: profile.full_name ?? "",
+                  position: profile.position ?? "",
+                  preferred_foot: profile.preferred_foot ?? "",
+                  locality: profile.locality ?? "",
+                  skill: profile.skill ?? "",
+                });
+              }
+
               setEditingProfile((value) => !value);
               setNotice("");
             }}
@@ -506,42 +514,6 @@ export default function PlayerPage() {
             {editingProfile ? "CANCEL" : "✎ EDIT PROFILE"}
           </button>
         </div>
-
-        {isManager && (
-          <section className="tz-about-panel">
-            <div className="tz-section-head">
-              <div>
-                <p className="tz-eyebrow"><i /> MANAGER ACCESS</p>
-                <h2>PLAYER DIRECTORY.</h2>
-              </div>
-            </div>
-            <p className="tz-data-note">
-              Official ratings can be changed only by authorized managers.
-            </p>
-            <div className="tz-profile-row">
-              <label htmlFor="tz-player-select">Select player</label>
-              <select
-                id="tz-player-select"
-                value={selectedId}
-                onChange={(event) => choosePlayer(event.target.value)}
-              >
-                {directory.map((player) => (
-                  <option key={player.profile_id} value={player.profile_id}>
-                    {player.full_name || "Unnamed player"} —{" "}
-                    {player.position || "Position not set"}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              className="tz-outline-button"
-              onClick={() => setEditingCard((value) => !value)}
-              disabled={!selectedPlayer}
-            >
-              {editingCard ? "CANCEL RATINGS" : "✎ EDIT OFFICIAL CARD"}
-            </button>
-          </section>
-        )}
 
         <section className="tz-legend-stage">
           <div className="tz-stage-kicker">
@@ -552,44 +524,73 @@ export default function PlayerPage() {
             className="tz-legend-card tz-png-player-card"
             style={{
               position: "relative",
+              zIndex: 2,
               width: "100%",
               maxWidth: "420px",
               aspectRatio: "2 / 3",
               marginInline: "auto",
               overflow: "hidden",
+              isolation: "isolate",
+              backgroundColor: "#10100d",
               backgroundImage:
                 "url('/brand/images/player-card/card-template.png')",
               backgroundPosition: "center",
               backgroundSize: "100% 100%",
               backgroundRepeat: "no-repeat",
-              isolation: "isolate",
             }}
           >
+            {/* High-contrast rating badge, layered above the PNG. */}
             <div
               style={{
                 position: "absolute",
-                top: "7%",
-                left: "8%",
-                width: "22%",
-                color: "#f4f1e8",
-                textShadow: "0 2px 8px #000",
+                zIndex: 5,
+                top: "5%",
+                left: "6%",
+                minWidth: "22%",
+                padding: "5px 8px",
+                border: "1px solid #d9bd79",
+                borderRadius: "8px",
+                background: "rgba(7, 8, 6, .94)",
+                color: "#fff5d9",
+                textAlign: "center",
+                boxShadow: "0 3px 12px rgba(0,0,0,.6)",
               }}
             >
-              <strong style={{ display: "block", fontSize: "clamp(24px, 7vw, 40px)", lineHeight: 1 }}>
-                {ratingText(displayedCard?.overall_rating)}
+              <strong
+                style={{
+                  display: "block",
+                  fontSize: "clamp(28px, 8vw, 42px)",
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  color: "#fff5d9",
+                }}
+              >
+                {ratingText(card?.overall_rating)}
               </strong>
-              <span style={{ fontSize: "clamp(10px, 2.8vw, 14px)", fontWeight: 800 }}>
-                {displayedPosition ? displayedPosition.slice(0, 3).toUpperCase() : "POS"}
+
+              <span
+                style={{
+                  display: "block",
+                  marginTop: "4px",
+                  fontSize: "clamp(10px, 2.8vw, 14px)",
+                  fontWeight: 800,
+                  letterSpacing: ".1em",
+                }}
+              >
+                {profile.position
+                  ? profile.position.slice(0, 3).toUpperCase()
+                  : "POS"}
               </span>
             </div>
 
             {displayedPhoto && (
               <img
                 src={displayedPhoto}
-                alt={`${displayedName} portrait`}
+                alt="Your Turfzy player portrait"
                 className="tz-player-photo"
                 style={{
                   position: "absolute",
+                  zIndex: 2,
                   top: "17%",
                   left: "22%",
                   width: "56%",
@@ -605,40 +606,61 @@ export default function PlayerPage() {
             <div
               style={{
                 position: "absolute",
+                zIndex: 4,
                 top: "56%",
                 left: "7%",
                 right: "7%",
                 textAlign: "center",
-                color: "#f7f2e8",
-                textShadow: "0 2px 8px #000",
+                color: "#fff8e9",
+                textShadow: "0 2px 8px #000, 0 0 4px #000",
                 overflowWrap: "anywhere",
               }}
             >
-              <div style={{ fontSize: "clamp(8px, 2vw, 11px)", letterSpacing: ".18em" }}>
+              <div
+                style={{
+                  fontSize: "clamp(8px, 2vw, 11px)",
+                  letterSpacing: ".18em",
+                }}
+              >
                 THE PLAYER BEHIND THE LEGEND
               </div>
-              <h1 style={{ margin: "5px 0 0", fontSize: "clamp(17px, 5vw, 27px)", lineHeight: 1.1 }}>
-                {displayedName}
+
+              <h1
+                style={{
+                  margin: "5px 0 0",
+                  fontSize: "clamp(17px, 5vw, 27px)",
+                  lineHeight: 1.1,
+                }}
+              >
+                {profile.full_name || "YOUR NAME"}
               </h1>
-              <div style={{ marginTop: "5px", fontSize: "clamp(9px, 2.5vw, 13px)", letterSpacing: ".12em" }}>
-                {displayedPosition.toUpperCase()}
+
+              <div
+                style={{
+                  marginTop: "5px",
+                  fontSize: "clamp(9px, 2.5vw, 13px)",
+                  letterSpacing: ".12em",
+                }}
+              >
+                {(profile.position || "POSITION NOT SET").toUpperCase()}
               </div>
             </div>
 
             <div
               style={{
                 position: "absolute",
+                zIndex: 4,
                 left: "12%",
                 right: "12%",
                 top: "69%",
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
                 gap: "clamp(5px, 2vw, 12px) clamp(14px, 5vw, 30px)",
-                color: "#f7f2e8",
+                color: "#fff8e9",
                 textShadow: "0 2px 6px #000",
               }}
             >
-              {cardStatRows.flat().map((stat) => (
+              {statRows.flat().map((stat) => (
                 <div
                   key={stat.label}
                   style={{
@@ -650,10 +672,21 @@ export default function PlayerPage() {
                     paddingBottom: "4px",
                   }}
                 >
-                  <span style={{ fontSize: "clamp(10px, 2.7vw, 14px)", fontWeight: 800 }}>
+                  <span
+                    style={{
+                      fontSize: "clamp(10px, 2.7vw, 14px)",
+                      fontWeight: 800,
+                    }}
+                  >
                     {stat.label}
                   </span>
-                  <strong style={{ fontSize: "clamp(15px, 4vw, 21px)" }}>
+
+                  <strong
+                    style={{
+                      fontSize: "clamp(15px, 4vw, 21px)",
+                      fontWeight: 900,
+                    }}
+                  >
                     {ratingText(stat.value)}
                   </strong>
                 </div>
@@ -663,11 +696,12 @@ export default function PlayerPage() {
             <div
               style={{
                 position: "absolute",
+                zIndex: 4,
                 bottom: "4.2%",
                 left: "8%",
                 right: "8%",
                 textAlign: "center",
-                color: "#f7f2e8",
+                color: "#fff8e9",
                 fontSize: "clamp(8px, 2.1vw, 11px)",
                 letterSpacing: ".16em",
                 textShadow: "0 2px 6px #000",
@@ -680,124 +714,188 @@ export default function PlayerPage() {
           <div className="tz-stage-caption">
             <span>◆</span> YOUR STORY. YOUR STATS. YOUR LEGACY.
           </div>
+
           <p className="tz-data-note">
-            {displayedCard?.is_verified
+            {card?.is_verified
               ? "VERIFIED PLAYER CARD"
               : "UNVERIFIED — OFFICIAL RATINGS AWAIT REVIEW"}
           </p>
         </section>
 
-        {viewingOwnProfile && (
-          <PlayerPhotoUpload
-            userId={userId}
-            currentPhoto={profile.avatar_url}
-            onUploaded={(url) => {
-              const cleanUrl = url.split("?")[0];
-              setProfile((current) => ({
-                ...current,
-                avatar_url: cleanUrl,
-              }));
-            }}
-            onRemoved={() => {
-              setProfile((current) => ({
-                ...current,
-                avatar_url: null,
-              }));
-            }}
-          />
-        )}
+        <PlayerPhotoUpload
+          userId={userId}
+          currentPhoto={displayedPhoto}
+          onUploaded={(url) => {
+            const cleanUrl = url.split("?")[0];
+
+            setProfile((current) => ({
+              ...current,
+              avatar_url: cleanUrl,
+            }));
+
+            setNotice("Your player portrait has been updated.");
+          }}
+          onRemoved={() => {
+            setProfile((current) => ({
+              ...current,
+              avatar_url: null,
+            }));
+
+            setNotice("Your player portrait has been removed.");
+          }}
+        />
 
         <section className="tz-performance-strip">
           <div>
             <span>GAMES</span>
-            <strong>{displayedCard?.appearances ?? "—"}</strong>
+            <strong>{card?.appearances ?? "—"}</strong>
             <small>APPEARANCES</small>
           </div>
+
           <div>
             <span>GOALS</span>
-            <strong>{displayedCard?.goals ?? "—"}</strong>
+            <strong>{card?.goals ?? "—"}</strong>
             <small>FINISHING</small>
           </div>
+
           <div>
             <span>ASSISTS</span>
-            <strong>{displayedCard?.assists ?? "—"}</strong>
+            <strong>{card?.assists ?? "—"}</strong>
             <small>CREATIVITY</small>
           </div>
+
           <div>
             <span>RATING</span>
             <strong>
-              {displayedCard?.average_rating == null
+              {card?.average_rating == null
                 ? "—"
-                : Number(displayedCard.average_rating).toFixed(1)}
+                : Number(card.average_rating).toFixed(1)}
             </strong>
             <small>AVERAGE</small>
           </div>
         </section>
 
-        {isManager && editingCard && (
+        {isManager && (
           <section className="tz-about-panel">
             <div className="tz-section-head">
               <div>
                 <p className="tz-eyebrow"><i /> MANAGER CONTROL</p>
-                <h2>EDIT OFFICIAL RATINGS.</h2>
+                <h2>OFFICIAL RATINGS.</h2>
               </div>
+
+              <button
+                type="button"
+                className="tz-outline-button tz-small-button"
+                disabled={!card}
+                onClick={() => {
+                  if (!editingCard && card) {
+                    setCardDraft({
+                      overall_rating: numberOrZero(card.overall_rating),
+                      pace: numberOrZero(card.pace),
+                      shooting: numberOrZero(card.shooting),
+                      passing: numberOrZero(card.passing),
+                      dribbling: numberOrZero(card.dribbling),
+                      defending: numberOrZero(card.defending),
+                      physical: numberOrZero(card.physical),
+                      attack: numberOrZero(card.attack),
+                      composure: numberOrZero(card.composure),
+                      appearances: numberOrZero(card.appearances),
+                      goals: numberOrZero(card.goals),
+                      assists: numberOrZero(card.assists),
+                    });
+
+                    setAverageRatingDraft(
+                      card.average_rating == null
+                        ? ""
+                        : String(card.average_rating)
+                    );
+
+                    setVerifiedDraft(Boolean(card.is_verified));
+                  }
+
+                  setEditingCard((value) => !value);
+                }}
+              >
+                {editingCard ? "CANCEL" : "EDIT RATINGS"}
+              </button>
             </div>
 
-            <div className="tz-profile-fields">
-              {CARD_FIELDS.map((field) => (
-                <div className="tz-profile-row" key={field.key}>
-                  <label htmlFor={`tz-card-${field.key}`}>{field.label}</label>
-                  <input
-                    id={`tz-card-${field.key}`}
-                    type="number"
-                    min={0}
-                    max={
-                      field.key === "appearances" ||
-                      field.key === "goals" ||
-                      field.key === "assists"
-                        ? 1000000
-                        : 99
-                    }
-                    step={1}
-                    value={cardDraft[field.key]}
-                    onChange={(event) =>
-                      updateCardNumber(field.key, event.target.value)
-                    }
-                  />
+            <p className="tz-data-note">
+              These controls edit only the signed-in account's player-card
+              record. Other players are not listed on this personal page.
+            </p>
+
+            {editingCard && (
+              <>
+                <div className="tz-profile-fields">
+                  {CARD_FIELDS.map((field) => (
+                    <div className="tz-profile-row" key={field.key}>
+                      <label htmlFor={`tz-card-${field.key}`}>
+                        {field.label}
+                      </label>
+
+                      <input
+                        id={`tz-card-${field.key}`}
+                        type="number"
+                        min={0}
+                        max={
+                          field.key === "appearances" ||
+                          field.key === "goals" ||
+                          field.key === "assists"
+                            ? 1000000
+                            : 99
+                        }
+                        step={1}
+                        value={cardDraft[field.key]}
+                        onChange={(event) =>
+                          updateCardNumber(field.key, event.target.value)
+                        }
+                      />
+                    </div>
+                  ))}
+
+                  <div className="tz-profile-row">
+                    <label htmlFor="tz-card-average">
+                      Average match rating (0–10)
+                    </label>
+
+                    <input
+                      id="tz-card-average"
+                      type="number"
+                      min={0}
+                      max={10}
+                      step={0.01}
+                      value={averageRatingDraft}
+                      onChange={(event) =>
+                        setAverageRatingDraft(event.target.value)
+                      }
+                    />
+                  </div>
+
+                  <div className="tz-profile-row">
+                    <label htmlFor="tz-verified">Mark card as verified</label>
+
+                    <input
+                      id="tz-verified"
+                      type="checkbox"
+                      checked={verifiedDraft}
+                      onChange={(event) =>
+                        setVerifiedDraft(event.target.checked)
+                      }
+                    />
+                  </div>
                 </div>
-              ))}
 
-              <div className="tz-profile-row">
-                <label htmlFor="tz-card-average">Average match rating (0–10)</label>
-                <input
-                  id="tz-card-average"
-                  type="number"
-                  min={0}
-                  max={10}
-                  step={0.01}
-                  value={averageRatingDraft}
-                  onChange={(event) => setAverageRatingDraft(event.target.value)}
-                />
-              </div>
-
-              <div className="tz-profile-row">
-                <label htmlFor="tz-verified">Mark card as verified</label>
-                <input
-                  id="tz-verified"
-                  type="checkbox"
-                  checked={verifiedDraft}
-                  onChange={(event) => setVerifiedDraft(event.target.checked)}
-                />
-              </div>
-            </div>
-
-            <button
-              className="tz-outline-button"
-              disabled={saving}
-              onClick={() => void saveCard()}
-            >
-              {saving ? "SAVING…" : "SAVE OFFICIAL CARD"}
-            </button>
+                <button
+                  type="button"
+                  className="tz-outline-button"
+                  disabled={saving || !card}
+                  onClick={() => void saveCard()}
+                >
+                  {saving ? "SAVING…" : "SAVE OFFICIAL CARD"}
+                </button>
+              </>
+            )}
           </section>
         )}
 
@@ -807,20 +905,35 @@ export default function PlayerPage() {
               <p className="tz-eyebrow"><i /> PLAYER DNA</p>
               <h2>THE NUMBERS BEHIND YOUR GAME.</h2>
             </div>
+
             <span className="tz-section-code">ANALYSIS / 001</span>
           </div>
 
           <div className="tz-analysis-grid">
             <div className="tz-radar-card">
               <div className="tz-panel-top">
-                <span>PERFORMANCE PROFILE</span><span>0–100</span>
+                <span>PERFORMANCE PROFILE</span>
+                <span>0–100</span>
               </div>
-              <svg className="tz-radar" viewBox="0 0 360 330" role="img" aria-label="Player performance radar">
+
+              <svg
+                className="tz-radar"
+                viewBox="0 0 360 330"
+                role="img"
+                aria-label="Player performance radar"
+              >
                 <defs>
-                  <linearGradient id="tzRadarFill" x1="0" y1="0" x2="1" y2="1">
+                  <linearGradient
+                    id="tzRadarFill"
+                    x1="0"
+                    y1="0"
+                    x2="1"
+                    y2="1"
+                  >
                     <stop offset="0%" stopColor="#55ff9a" stopOpacity=".36" />
                     <stop offset="100%" stopColor="#12a965" stopOpacity=".06" />
                   </linearGradient>
+
                   <filter id="tzRadarGlow">
                     <feGaussianBlur stdDeviation="3" result="blur" />
                     <feMerge>
@@ -829,6 +942,7 @@ export default function PlayerPage() {
                     </feMerge>
                   </filter>
                 </defs>
+
                 <g className="tz-radar-grid">
                   <polygon points="180,35 315,165 180,295 45,165" />
                   <polygon points="180,67 282,165 180,263 78,165" />
@@ -836,53 +950,63 @@ export default function PlayerPage() {
                   <polygon points="180,131 216,165 180,199 144,165" />
                   <path d="M180 35V295M45 165H315" />
                 </g>
+
                 <g className="tz-radar-labels">
                   <text x="180" y="19" textAnchor="middle">ATTACK</text>
                   <text x="326" y="169">DEFENCE</text>
                   <text x="180" y="320" textAnchor="middle">COMPOSURE</text>
                   <text x="34" y="169" textAnchor="end">OVERALL</text>
                 </g>
+
                 <polygon
                   className="tz-radar-area"
                   points={
-                    displayedCard
-                      ? `180,${165 - numberOrZero(displayedCard.attack) * 1.3} ${180 + numberOrZero(displayedCard.defending) * 1.35},165 180,${165 + numberOrZero(displayedCard.composure) * 1.3} ${180 - numberOrZero(displayedCard.overall_rating) * 1.35},165`
+                    card
+                      ? `180,${165 - numberOrZero(card.attack) * 1.3} ${180 + numberOrZero(card.defending) * 1.35},165 180,${165 + numberOrZero(card.composure) * 1.3} ${180 - numberOrZero(card.overall_rating) * 1.35},165`
                       : "180,165 180,165 180,165 180,165"
                   }
                 />
+
                 <polygon
                   className="tz-radar-line"
                   points={
-                    displayedCard
-                      ? `180,${165 - numberOrZero(displayedCard.attack) * 1.3} ${180 + numberOrZero(displayedCard.defending) * 1.35},165 180,${165 + numberOrZero(displayedCard.composure) * 1.3} ${180 - numberOrZero(displayedCard.overall_rating) * 1.35},165`
+                    card
+                      ? `180,${165 - numberOrZero(card.attack) * 1.3} ${180 + numberOrZero(card.defending) * 1.35},165 180,${165 + numberOrZero(card.composure) * 1.3} ${180 - numberOrZero(card.overall_rating) * 1.35},165`
                       : "180,165 180,165 180,165 180,165"
                   }
                   filter="url(#tzRadarGlow)"
                 />
               </svg>
+
               <div className="tz-radar-legend">
                 <span><i /> PLAYER DATA</span>
-                <span>{displayedCard?.is_verified ? "VERIFIED" : "UNVERIFIED"}</span>
+                <span>{card?.is_verified ? "VERIFIED" : "UNVERIFIED"}</span>
               </div>
             </div>
 
             <div className="tz-attribute-list">
               <div className="tz-panel-top">
-                <span>CORE ATTRIBUTES</span><span>RATING</span>
+                <span>CORE ATTRIBUTES</span>
+                <span>RATING</span>
               </div>
+
               {displayedAttributes.map((item) => (
                 <div className="tz-attribute-row" key={item.label}>
                   <div>
                     <span>{item.label}</span>
                     <strong>{ratingText(item.value)}</strong>
                   </div>
+
                   <div className="tz-meter">
                     <i style={{ width: `${item.value}%` }} />
                   </div>
                 </div>
               ))}
-              {!displayedCard && (
-                <p className="tz-data-note">No player card is available yet.</p>
+
+              {!card && (
+                <p className="tz-data-note">
+                  No official player card is available for this account yet.
+                </p>
               )}
             </div>
           </div>
@@ -894,7 +1018,9 @@ export default function PlayerPage() {
               <p className="tz-eyebrow"><i /> PLAYER IDENTITY</p>
               <h2>ABOUT YOU.</h2>
             </div>
+
             <button
+              type="button"
               className="tz-outline-button tz-small-button"
               onClick={() => {
                 if (editingProfile) {
@@ -906,6 +1032,7 @@ export default function PlayerPage() {
                     skill: profile.skill ?? "",
                   });
                 }
+
                 setEditingProfile((value) => !value);
               }}
             >
@@ -915,7 +1042,7 @@ export default function PlayerPage() {
 
           {editingProfile && (
             <p className="tz-edit-note">
-              Update your own profile. Official player ratings are managed separately.
+              Update your own profile. Official ratings are managed separately.
             </p>
           )}
 
@@ -931,7 +1058,9 @@ export default function PlayerPage() {
                 <span className="tz-field-icon">
                   {["♙", "⚑", "⌁", "⌖", "♧"][index]}
                 </span>
+
                 <label htmlFor={`tz-${key}`}>{label}</label>
+
                 {editingProfile ? (
                   key === "preferred_foot" ? (
                     <select
@@ -967,6 +1096,7 @@ export default function PlayerPage() {
                     {profile[key] || placeholder}
                   </span>
                 )}
+
                 <span className="tz-field-chevron">›</span>
               </div>
             ))}
@@ -974,6 +1104,7 @@ export default function PlayerPage() {
 
           {editingProfile && (
             <button
+              type="button"
               className="tz-outline-button"
               disabled={saving}
               onClick={() => void saveProfile()}
@@ -989,8 +1120,12 @@ export default function PlayerPage() {
               <p className="tz-eyebrow"><i /> YOUR STATS</p>
               <h2>PROGRESS, NOT PROMISES.</h2>
             </div>
+
             <label className="tz-period-select">
-              <select value={period} onChange={(event) => setPeriod(event.target.value)}>
+              <select
+                value={period}
+                onChange={(event) => setPeriod(event.target.value)}
+              >
                 <option>ALL TIME</option>
                 <option>THIS SEASON</option>
                 <option>LAST 30 DAYS</option>
@@ -998,6 +1133,7 @@ export default function PlayerPage() {
               <span>⌄</span>
             </label>
           </div>
+
           <p className="tz-stats-empty">
             {period === "ALL TIME"
               ? "Showing recorded all-time totals."
