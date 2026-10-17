@@ -9,9 +9,7 @@ const MAX_INPUT_BYTES = 20 * 1024 * 1024;
 const MAX_DIMENSION = 1200;
 const BUCKET = "player-photos";
 
-const supabase = createClient();
-
-type UploadProps = {
+type Props = {
   userId: string;
   currentPhoto: string | null;
   onUploaded: (url: string) => void;
@@ -20,165 +18,132 @@ type UploadProps = {
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
+    const objectUrl = URL.createObjectURL(file);
     const image = new Image();
 
     image.onload = () => {
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objectUrl);
       resolve(image);
     };
 
     image.onerror = () => {
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objectUrl);
       reject(new Error("This image could not be opened. Try another photo."));
     };
 
-    image.src = url;
+    image.src = objectUrl;
   });
 }
 
-function canvasBlob(
+async function canvasToWebP(
   canvas: HTMLCanvasElement,
   quality: number
-): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    canvas.toBlob(resolve, "image/webp", quality);
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("The image could not be converted to WebP."));
+      },
+      "image/webp",
+      quality
+    );
   });
 }
 
 async function processPortrait(file: File): Promise<Blob> {
-  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-    throw new Error("Choose a JPG, PNG or WebP image.");
+  const supportedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+  if (!supportedTypes.includes(file.type)) {
+    throw new Error("Choose a JPEG, PNG or WebP image.");
   }
 
   if (file.size > MAX_INPUT_BYTES) {
-    throw new Error("Choose a photo smaller than 20 MB.");
+    throw new Error("Please choose an image smaller than 20 MB.");
   }
 
   const image = await loadImage(file);
 
   if (!image.naturalWidth || !image.naturalHeight) {
-    throw new Error("The image has invalid dimensions.");
+    throw new Error("This image appears to be empty or invalid.");
   }
 
-  const scale = Math.min(
+  let scale = Math.min(
     1,
-    MAX_DIMENSION /
-      Math.max(image.naturalWidth, image.naturalHeight)
+    MAX_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight)
   );
 
-  let width = Math.max(1, Math.round(image.naturalWidth * scale));
-  let height = Math.max(1, Math.round(image.naturalHeight * scale));
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
 
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    // Make a fresh canvas for every attempt. Resizing a canvas resets its state.
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
 
-  if (!ctx) {
-    throw new Error("Image processing is unavailable in this browser.");
-  }
+    const context = canvas.getContext("2d");
 
-  // Retain the original aspect ratio; never stretch the player.
-  canvas.width = width;
-  canvas.height = height;
-  ctx.drawImage(image, 0, 0, width, height);
+    if (!context) {
+      throw new Error("Your browser could not process this image.");
+    }
 
-  // Muted, warm monochrome treatment for the antique gold card.
-  const pixels = ctx.getImageData(0, 0, width, height);
-  const data = pixels.data;
+    context.drawImage(image, 0, 0, width, height);
 
-  for (let i = 0; i < data.length; i += 4) {
-    const luminance =
-      0.299 * data[i] +
-      0.587 * data[i + 1] +
-      0.114 * data[i + 2];
+    const pixels = context.getImageData(0, 0, width, height);
+    const data = pixels.data;
 
-    // Slightly warm highlights, subdued saturation and controlled contrast.
-    const tone = Math.max(
-      0,
-      Math.min(255, (luminance - 128) * 0.92 + 128)
-    );
+    // Muted warm monochrome. Keep the image rectangular; no fake
+    // background removal or subject segmentation is performed.
+    for (let i = 0; i < data.length; i += 4) {
+      const red = data[i];
+      const green = data[i + 1];
+      const blue = data[i + 2];
 
-    data[i] = Math.min(255, tone * 1.035 + 5);
-    data[i + 1] = Math.min(255, tone * 0.99 + 2);
-    data[i + 2] = Math.max(0, tone * 0.88);
-  }
+      const gray = 0.299 * red + 0.587 * green + 0.114 * blue;
+      const muted = gray * 0.88 + 18;
 
-  ctx.putImageData(pixels, 0, 0);
+      data[i] = Math.min(255, muted * 1.04);
+      data[i + 1] = Math.min(255, muted * 1.0);
+      data[i + 2] = Math.min(255, muted * 0.91);
+    }
 
-  // Softly feather the edges. Keep the centre fully opaque.
-  const feather = Math.max(
-    8,
-    Math.round(Math.min(width, height) * 0.045)
-  );
+    context.putImageData(pixels, 0, 0);
 
-  const output = ctx.getImageData(0, 0, width, height);
-  const outputData = output.data;
+    // Gently soften only the outer edge of the portrait.
+    const edge = Math.max(2, Math.round(Math.min(width, height) * 0.025));
+    const feather = context.createImageData(width, height);
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const distance = Math.min(
-        x,
-        y,
-        width - 1 - x,
-        height - 1 - y
-      );
+    feather.data.set(context.getImageData(0, 0, width, height).data);
 
-      if (distance < feather) {
-        const t = Math.max(0, Math.min(1, distance / feather));
-        const smooth = t * t * (3 - 2 * t);
-        const alphaIndex = (y * width + x) * 4 + 3;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const distance = Math.min(x, y, width - 1 - x, height - 1 - y);
 
-        outputData[alphaIndex] = Math.round(
-          outputData[alphaIndex] * smooth
-        );
+        if (distance < edge) {
+          const alpha = Math.max(0, Math.min(1, distance / edge));
+          feather.data[(y * width + x) * 4 + 3] = Math.round(
+            feather.data[(y * width + x) * 4 + 3] * alpha
+          );
+        }
       }
     }
-  }
 
-  ctx.putImageData(output, 0, 0);
+    context.putImageData(feather, 0, 0);
 
-  // Try progressively smaller quality settings first.
-  for (const quality of [0.9, 0.82, 0.74, 0.66, 0.58, 0.5, 0.42, 0.34, 0.26]) {
-    const blob = await canvasBlob(canvas, quality);
+    for (const quality of [0.86, 0.75, 0.64, 0.52, 0.4]) {
+      const blob = await canvasToWebP(canvas, quality);
 
-    if (blob && blob.size <= MAX_BYTES) {
-      return blob;
-    }
-  }
-
-  // If necessary, reduce dimensions proportionally while preserving the finish.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    width = Math.max(1, Math.round(width * 0.8));
-    height = Math.max(1, Math.round(height * 0.8));
-
-    const smaller = document.createElement("canvas");
-    smaller.width = width;
-    smaller.height = height;
-
-    const smallerCtx = smaller.getContext("2d");
-
-    if (!smallerCtx) {
-      throw new Error("Could not resize the image.");
-    }
-
-    smallerCtx.drawImage(canvas, 0, 0, width, height);
-
-    for (const quality of [0.6, 0.45, 0.3, 0.2]) {
-      const blob = await canvasBlob(smaller, quality);
-
-      if (blob && blob.size <= MAX_BYTES) {
+      if (blob.size <= MAX_BYTES) {
         return blob;
       }
     }
 
-    // Use this smaller image for the next compression attempt.
-    canvas.width = width;
-    canvas.height = height;
-    ctx.drawImage(smaller, 0, 0, width, height);
+    scale *= 0.78;
   }
 
   throw new Error(
-    "This photo could not be compressed below 500 KB. Please choose another."
+    "This photo could not be compressed below 500 KB. Try a smaller image."
   );
 }
 
@@ -187,107 +152,131 @@ export default function PlayerPhotoUpload({
   currentPhoto,
   onUploaded,
   onRemoved,
-}: UploadProps) {
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+}: Props) {
+  const supabase = createClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function verifyUser() {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
-
-    if (error) throw error;
-
-    if (!user || user.id !== userId) {
-      throw new Error("Please sign in again before changing your portrait.");
-    }
-
-    return user;
-  }
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
 
   async function upload(file?: File) {
-    if (!file || busy) return;
+    if (!file) return;
 
     setBusy(true);
     setMessage("");
+    setMessageIsError(false);
 
     try {
-      const user = await verifyUser();
-      const blob = await processPortrait(file);
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError) throw authError;
+
+      if (!user || user.id !== userId) {
+        throw new Error("Please sign in to your own Turfzy account first.");
+      }
+
+      const webp = await processPortrait(file);
       const path = `${user.id}/profile.webp`;
 
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
-        .upload(path, blob, {
-          contentType: "image/webp",
+        .upload(path, webp, {
           upsert: true,
+          contentType: "image/webp",
           cacheControl: "3600",
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        if (/mime type|content.?type|not supported/i.test(uploadError.message)) {
+          throw new Error(
+            "Supabase rejected WebP. Check that the player-photos bucket allows image/webp."
+          );
+        }
+
+        throw uploadError;
+      }
 
       const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      const publicUrl = `${data.publicUrl}?v=${Date.now()}`;
 
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({ avatar_url: data.publicUrl })
+        .update({ avatar_url: publicUrl })
         .eq("id", user.id);
 
-      if (profileError) {
-        throw new Error(
-          "The image uploaded, but the profile could not be updated. Please retry."
-        );
-      }
+      if (profileError) throw profileError;
 
-      onUploaded(`${data.publicUrl}?v=${Date.now()}`);
-
+      onUploaded(publicUrl);
+      setMessage("Player portrait uploaded successfully.");
+    } catch (err) {
       setMessage(
-        `Portrait saved · ${Math.ceil(blob.size / 1024)} KB`
+        err instanceof Error
+          ? err.message
+          : "The photo could not be uploaded. Please try again."
       );
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Upload failed. Please retry."
-      );
+      setMessageIsError(true);
     } finally {
       setBusy(false);
+
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
     }
   }
 
   async function removePhoto() {
-    if (busy || !currentPhoto) return;
+    if (!currentPhoto) return;
 
     setBusy(true);
     setMessage("");
+    setMessageIsError(false);
 
     try {
-      const user = await verifyUser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-      // Clear the profile first, so the player can use the default card.
-      const { error } = await supabase
+      if (authError) throw authError;
+
+      if (!user || user.id !== userId) {
+        throw new Error("Please sign in to your own Turfzy account first.");
+      }
+
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({ avatar_url: null })
         .eq("id", user.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
       onRemoved();
 
-      // Best-effort cleanup; a failed cleanup must not undo photo removal.
-      const { error: storageError } = await supabase.storage
+      // Remove the stored object only after the profile update succeeds.
+      const { error: removeError } = await supabase.storage
         .from(BUCKET)
         .remove([`${user.id}/profile.webp`]);
 
+      if (removeError) {
+        setMessage(
+          "Portrait removed from your profile. The stored file could not be deleted; check storage permissions."
+        );
+        setMessageIsError(true);
+        return;
+      }
+
+      setMessage("Player portrait removed.");
+    } catch (err) {
       setMessage(
-        storageError
-          ? "Photo removed from your profile. Temporary storage cleanup may be needed."
-          : "Photo removed. Your default card portrait is restored."
+        err instanceof Error
+          ? err.message
+          : "The photo could not be removed."
       );
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not remove the photo."
-      );
+      setMessageIsError(true);
     } finally {
       setBusy(false);
     }
@@ -295,68 +284,59 @@ export default function PlayerPhotoUpload({
 
   return (
     <section className="tz-portrait-editor">
-      <div className="tz-portrait-editor__preview">
+      <div className="tz-portrait-preview">
         {currentPhoto ? (
-          <img
-            src={currentPhoto}
-            alt="Processed player portrait"
-          />
+          <img src={currentPhoto} alt="Your uploaded player portrait" />
         ) : (
           <span>NO PHOTO</span>
         )}
       </div>
 
-      <div className="tz-portrait-editor__content">
+      <div className="tz-portrait-content">
         <h3>PLAYER PORTRAIT</h3>
 
         <p>
-          Optional. Your photo is proportionally resized, given a warm
-          monochrome finish, softly feathered and compressed to 500 KB or less.
+          Optional. JPEG, PNG and WebP are accepted. Your image is converted
+          to warm monochrome WebP and compressed to 500 KB or less.
         </p>
-
-        <button
-          type="button"
-          className="tz-portrait-editor__button"
-          disabled={busy}
-          onClick={() => inputRef.current?.click()}
-        >
-          {busy
-            ? "PROCESSING…"
-            : currentPhoto
-              ? "CHANGE PHOTO"
-              : "CHOOSE PHOTO"}
-        </button>
 
         <input
           ref={inputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          disabled={busy}
           hidden
+          disabled={busy}
           onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            event.currentTarget.value = "";
-            void upload(file);
+            void upload(event.target.files?.[0]);
           }}
         />
+
+        <button
+          type="button"
+          className="tz-outline-button"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {busy
+            ? "PROCESSING PHOTO…"
+            : currentPhoto
+              ? "CHANGE PHOTO"
+              : "CHOOSE PHOTO"}
+        </button>
 
         {currentPhoto && (
           <button
             type="button"
-            className="tz-portrait-editor__secondary"
+            className="tz-outline-button"
             disabled={busy}
             onClick={() => void removePhoto()}
           >
-            {busy ? "PLEASE WAIT…" : "KEEP DEFAULT — REMOVE PHOTO"}
+            REMOVE PHOTO
           </button>
         )}
 
         {message && (
-          <p
-            role="status"
-            aria-live="polite"
-            className="tz-portrait-editor__message"
-          >
+          <p role={messageIsError ? "alert" : "status"}>
             {message}
           </p>
         )}

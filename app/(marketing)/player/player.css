@@ -1153,3 +1153,60 @@
     transition: none !important;
   }
 }
+
+
+/* Fix the PNG card: the old shield clip-path was cutting off the rating. */
+.tz-legend-card.tz-png-player-card {
+  clip-path: none !important;
+  -webkit-clip-path: none !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+
+/* Keep the rating above the template artwork. */
+.tz-legend-card.tz-png-player-card > div {
+  box-sizing: border-box;
+}
+
+/* Keep the photo below the name and stats. */
+.tz-legend-card.tz-png-player-card > img.tz-player-photo {
+  z-index: 2 !important;
+  pointer-events: none;
+}
+
+/* Keep the rating badge and text above the PNG. */
+.tz-legend-card.tz-png-player-card > div:first-child {
+  z-index: 10 !important;
+}
+
+/* Make the card fit small mobile screens. */
+.tz-legend-stage {
+  min-width: 0;
+  overflow: visible;
+}
+
+.tz-legend-card.tz-png-player-card {
+  max-width: min(420px, 100%) !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3 !important;
+  margin-inline: auto !important;
+}
+
+/* Give the upload panel room and keep its controls usable. */
+.tz-portrait-editor {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tz-portrait-editor img {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.tz-player {
+  padding-bottom: max(180px, env(safe-area-inset-bottom)) !important;
+}
