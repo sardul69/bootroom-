@@ -489,31 +489,10 @@ export default function PlayerPage() {
         )}
 
         <div className="tz-player-toolbar">
-          <Link href="/" className="tz-back-link">
-            ‹ <span>PLAYERS</span>
-          </Link>
-
-          <button
-            type="button"
-            className="tz-outline-button"
-            onClick={() => {
-              if (editingProfile) {
-                setProfileDraft({
-                  full_name: profile.full_name ?? "",
-                  position: profile.position ?? "",
-                  preferred_foot: profile.preferred_foot ?? "",
-                  locality: profile.locality ?? "",
-                  skill: profile.skill ?? "",
-                });
-              }
-
-              setEditingProfile((value) => !value);
-              setNotice("");
-            }}
-          >
-            {editingProfile ? "CANCEL" : "✎ EDIT PROFILE"}
-          </button>
-        </div>
+  <Link href="/" className="tz-back-link">
+    ‹ <span>PLAYERS</span>
+  </Link>
+</div>
 
         <section className="tz-legend-stage">
           <div className="tz-stage-kicker">
