@@ -1,10 +1,14 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700;800&display=swap");
 
+/* =========================================================
+   TURFZY PLAYER CLUB — GLOBAL DESIGN
+   ========================================================= */
+
 .tz-player {
   --bg: #070706;
-  --panel: rgba(9, 9, 8, .94);
-  --line: rgba(205, 174, 108, .38);
+  --panel: rgba(9, 9, 8, 0.94);
+  --line: rgba(205, 174, 108, 0.38);
   --gold: #dfc17e;
   --gold-light: #fff0c5;
   --ivory: #f1e7ce;
@@ -18,8 +22,8 @@
   padding-bottom: 40px;
   color: var(--ivory);
   background:
-    radial-gradient(ellipse at 50% 20%, rgba(161, 111, 37, .16), transparent 38%),
-    radial-gradient(ellipse at 5% 30%, rgba(223, 193, 126, .12), transparent 24%),
+    radial-gradient(ellipse at 50% 20%, rgba(161, 111, 37, 0.16), transparent 38%),
+    radial-gradient(ellipse at 5% 30%, rgba(223, 193, 126, 0.12), transparent 24%),
     linear-gradient(180deg, #080807 0%, #11100d 42%, #050505 100%);
   font-family: "DM Sans", sans-serif;
 }
@@ -37,9 +41,9 @@
   height: min(800px, 90vw);
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 0% 15%, rgba(255, 236, 180, .35), transparent 17%),
-    radial-gradient(ellipse at 100% 16%, rgba(255, 226, 151, .22), transparent 20%),
-    radial-gradient(ellipse at 50% 45%, rgba(177, 126, 46, .13), transparent 43%),
+    radial-gradient(ellipse at 0% 15%, rgba(255, 236, 180, 0.35), transparent 17%),
+    radial-gradient(ellipse at 100% 16%, rgba(255, 226, 151, 0.22), transparent 20%),
+    radial-gradient(ellipse at 50% 45%, rgba(177, 126, 46, 0.13), transparent 43%),
     linear-gradient(180deg, transparent 65%, #080807 100%);
   filter: blur(18px);
 }
@@ -57,13 +61,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(223, 193, 126, .23);
+  border-bottom: 1px solid rgba(223, 193, 126, 0.23);
 }
 
 .tz-player-wordmark {
   color: var(--gold-light);
   font: 600 28px/1 "Cormorant Garamond", serif;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-decoration: none;
 }
 
@@ -79,7 +83,7 @@
   gap: 9px;
   color: var(--gold);
   font-size: 10px;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
 }
 
 .tz-player-header-right i,
@@ -89,7 +93,7 @@
   display: inline-block;
   border-radius: 50%;
   background: var(--gold);
-  box-shadow: 0 0 12px rgba(223, 193, 126, .38);
+  box-shadow: 0 0 12px rgba(223, 193, 126, 0.38);
 }
 
 .tz-back-link {
@@ -98,25 +102,34 @@
   gap: 10px;
   color: var(--ivory);
   font-size: 10px;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
   text-decoration: none;
 }
 
 .tz-outline-button {
-  border: 1px solid rgba(223, 193, 126, .42);
+  border: 1px solid rgba(223, 193, 126, 0.42);
   border-radius: 4px;
-  background: rgba(10, 10, 9, .75);
+  background: rgba(10, 10, 9, 0.75);
   color: var(--ivory);
   padding: 10px 15px;
   font: 500 10px "DM Sans", sans-serif;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
   cursor: pointer;
 }
 
 .tz-outline-button:hover {
   border-color: var(--gold-light);
-  background: rgba(223, 193, 126, .08);
+  background: rgba(223, 193, 126, 0.08);
 }
+
+.tz-outline-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   PLAYER CARD STAGE
+   ========================================================= */
 
 .tz-legend-stage {
   position: relative;
@@ -133,18 +146,19 @@
   justify-content: space-between;
   color: var(--muted);
   font-size: 9px;
-  letter-spacing: .17em;
+  letter-spacing: 0.17em;
 }
 
 .tz-stage-kicker span {
   color: var(--gold);
 }
 
+/* Legacy card styling retained for the existing card until JSX is replaced. */
 .tz-legend-card {
   position: relative;
   isolation: isolate;
   width: min(100%, 430px);
-  aspect-ratio: .69;
+  aspect-ratio: 0.69;
   overflow: hidden;
   padding: 3px;
   background:
@@ -167,8 +181,8 @@
     6% 19%, 14% 10%, 27% 7%, 34% 3%, 42% 4%
   );
   filter:
-    drop-shadow(0 0 2px rgba(255, 230, 165, .8))
-    drop-shadow(0 18px 35px rgba(0, 0, 0, .8));
+    drop-shadow(0 0 2px rgba(255, 230, 165, 0.8))
+    drop-shadow(0 18px 35px rgba(0, 0, 0, 0.8));
 }
 
 .tz-legend-card::before {
@@ -177,14 +191,14 @@
   inset: 8px;
   z-index: 10;
   pointer-events: none;
-  border: 1px solid rgba(255, 239, 193, .8);
+  border: 1px solid rgba(255, 239, 193, 0.8);
   clip-path: polygon(
     50% 0%, 58% 4%, 66% 3%, 73% 7%, 86% 10%,
     94% 19%, 96% 29%, 96% 80%, 90% 91%,
     50% 100%, 10% 91%, 4% 80%, 4% 29%,
     6% 19%, 14% 10%, 27% 7%, 34% 3%, 42% 4%
   );
-  box-shadow: inset 0 0 24px rgba(0, 0, 0, .35);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35);
 }
 
 .tz-legend-card::after {
@@ -193,9 +207,9 @@
   inset: 3px;
   z-index: -1;
   background:
-    radial-gradient(ellipse at 50% 22%, rgba(255, 250, 224, .3), transparent 38%),
-    linear-gradient(145deg, rgba(255, 255, 240, .18), transparent 28%),
-    linear-gradient(180deg, transparent 35%, rgba(0, 0, 0, .9) 82%);
+    radial-gradient(ellipse at 50% 22%, rgba(255, 250, 224, 0.3), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 240, 0.18), transparent 28%),
+    linear-gradient(180deg, transparent 35%, rgba(0, 0, 0, 0.9) 82%);
 }
 
 .tz-card-topline,
@@ -217,7 +231,7 @@
   color: #795b2d;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
 }
 
 .tz-card-rating {
@@ -231,7 +245,7 @@
 }
 
 .tz-card-rating strong {
-  font: 800 clamp(42px, 7vw, 58px)/.9 "Barlow Condensed", sans-serif;
+  font: 800 clamp(42px, 7vw, 58px)/0.9 "Barlow Condensed", sans-serif;
 }
 
 .tz-card-rating span {
@@ -245,12 +259,13 @@
   font-size: 24px;
 }
 
+/* Legacy portrait container and generated silhouette. */
 .tz-card-portrait {
   z-index: 1;
   inset: 13% 9% 27%;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, .2), transparent 35%),
+    radial-gradient(ellipse at 50% 30%, rgba(255, 255, 255, 0.2), transparent 35%),
     linear-gradient(140deg, #eee3c9, #b49a6b 52%, #16130e);
 }
 
@@ -260,11 +275,184 @@
   left: 12%;
   width: 76%;
   aspect-ratio: 1;
-  border: 1px solid rgba(173, 128, 55, .6);
+  border: 1px solid rgba(173, 128, 55, 0.6);
   border-radius: 50%;
-  box-shadow: 0 0 40px rgba(173, 128, 55, .16);
+  box-shadow: 0 0 40px rgba(173, 128, 55, 0.16);
 }
 
+.tz-portrait-head,
+.tz-portrait-neck,
+.tz-portrait-body,
+.tz-portrait-light {
+  position: absolute;
+}
+
+/* Uploaded player photo within the legacy card. */
+.tz-card-portrait .tz-player-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
+}
+
+/* PNG-based card artwork: the PNG is the fixed design. */
+.tz-png-card {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, 430px);
+  aspect-ratio: 2 / 3;
+  margin-inline: auto;
+  overflow: hidden;
+  padding: 0;
+  clip-path: none;
+  border-radius: 2px;
+  background: #171009;
+  color: #4c2b0d;
+  filter: drop-shadow(0 18px 35px rgba(0, 0, 0, 0.8));
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+.tz-png-card::before,
+.tz-png-card::after {
+  content: none;
+}
+
+.tz-card-template {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tz-png-rating {
+  position: absolute;
+  top: 12%;
+  left: 10%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(255, 235, 177, 0.6);
+}
+
+.tz-png-rating strong {
+  color: #805116;
+  font: 700 clamp(27px, 8vw, 52px)/0.95 "Cormorant Garamond", Georgia, serif;
+}
+
+.tz-png-rating span {
+  margin-top: 5px;
+  color: #56370f;
+  font-size: clamp(9px, 2.2vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tz-png-portrait {
+  position: absolute;
+  top: 15%;
+  left: 22%;
+  z-index: 2;
+  width: 57%;
+  height: 39%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 76%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 76%,
+    transparent 100%
+  );
+}
+
+.tz-png-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: sepia(0.45) grayscale(0.65) contrast(1.05);
+  mix-blend-mode: multiply;
+}
+
+.tz-png-identity {
+  position: absolute;
+  top: 52%;
+  left: 14%;
+  z-index: 4;
+  width: 72%;
+  min-height: 6%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #69410f;
+  font-size: clamp(13px, 3.4vw, 25px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 0 rgba(255, 230, 165, 0.8);
+}
+
+.tz-png-attributes {
+  position: absolute;
+  top: 63%;
+  left: 20%;
+  z-index: 4;
+  width: 60%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 8%;
+  row-gap: 8px;
+}
+
+.tz-png-attributes > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 7%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.tz-png-attributes strong {
+  min-width: 2ch;
+  color: #805116;
+  font-size: clamp(15px, 4vw, 26px);
+  line-height: 1.2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 rgba(255, 232, 177, 0.7);
+}
+
+.tz-png-attributes span {
+  color: #56370f;
+  font-size: clamp(8px, 2vw, 13px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Legacy card identity, attributes and footer. */
 .tz-card-identity {
   z-index: 12;
   left: 10%;
@@ -278,14 +466,14 @@
   margin: 0 0 7px;
   color: #e9d8aa;
   font-size: 8px;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
 }
 
 .tz-card-identity h1 {
   margin: 0;
   color: var(--gold-light);
   font: 600 clamp(25px, 5vw, 36px)/1 "Cormorant Garamond", serif;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   overflow-wrap: anywhere;
 }
@@ -302,7 +490,7 @@
 .tz-card-crest-row i {
   width: 1px;
   height: 16px;
-  background: rgba(223, 193, 126, .65);
+  background: rgba(223, 193, 126, 0.65);
 }
 
 .tz-card-attributes {
@@ -314,7 +502,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px 5px;
   padding-top: 12px;
-  border-top: 1px solid rgba(230, 200, 128, .55);
+  border-top: 1px solid rgba(230, 200, 128, 0.55);
 }
 
 .tz-card-attributes div {
@@ -343,8 +531,12 @@
   margin-top: 13px;
   color: var(--gold);
   font: 500 10px "DM Sans", sans-serif;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
 }
+
+/* =========================================================
+   PERFORMANCE STRIP
+   ========================================================= */
 
 .tz-performance-strip {
   display: grid;
@@ -352,10 +544,10 @@
   max-width: 960px;
   margin: 0 auto 18px;
   padding: 19px 8px;
-  border: 1px solid rgba(223, 193, 126, .34);
+  border: 1px solid rgba(223, 193, 126, 0.34);
   border-radius: 8px;
-  background: linear-gradient(120deg, rgba(9, 9, 8, .96), rgba(18, 16, 12, .94));
-  box-shadow: inset 0 1px rgba(255, 255, 255, .035);
+  background: linear-gradient(120deg, rgba(9, 9, 8, 0.96), rgba(18, 16, 12, 0.94));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
 }
 
 .tz-performance-strip > div {
@@ -363,7 +555,7 @@
   align-items: center;
   flex-direction: column;
   gap: 5px;
-  border-right: 1px solid rgba(223, 193, 126, .2);
+  border-right: 1px solid rgba(223, 193, 126, 0.2);
 }
 
 .tz-performance-strip > div:last-child {
@@ -374,7 +566,7 @@
 .tz-performance-strip small {
   color: var(--muted);
   font-size: 8px;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 .tz-performance-strip strong {
@@ -382,15 +574,19 @@
   font: 600 32px "Cormorant Garamond", serif;
 }
 
+/* =========================================================
+   PANELS AND PLAYER ANALYTICS
+   ========================================================= */
+
 .tz-attributes-panel,
 .tz-about-panel,
 .tz-stats-footer {
-  border: 1px solid rgba(223, 193, 126, .32);
+  border: 1px solid rgba(223, 193, 126, 0.32);
   border-radius: 8px;
   background:
-    radial-gradient(ellipse at 100% 0%, rgba(167, 123, 48, .08), transparent 35%),
-    linear-gradient(135deg, rgba(12, 11, 9, .97), rgba(5, 5, 5, .98));
-  box-shadow: inset 0 1px rgba(255, 255, 255, .025);
+    radial-gradient(ellipse at 100% 0%, rgba(167, 123, 48, 0.08), transparent 35%),
+    linear-gradient(135deg, rgba(12, 11, 9, 0.97), rgba(5, 5, 5, 0.98));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
 }
 
 .tz-attributes-panel,
@@ -411,7 +607,7 @@
   margin: 0 0 7px;
   color: var(--gold);
   font-size: 9px;
-  letter-spacing: .16em;
+  letter-spacing: 0.16em;
 }
 
 .tz-section-head h2,
@@ -419,13 +615,13 @@
   margin: 0;
   color: var(--ivory);
   font: 500 25px/1.1 "Cormorant Garamond", serif;
-  letter-spacing: .035em;
+  letter-spacing: 0.035em;
 }
 
 .tz-section-code {
   color: var(--muted);
   font-size: 8px;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
 }
 
 .tz-analysis-grid {
@@ -438,9 +634,9 @@
 .tz-attribute-list {
   min-width: 0;
   padding: 12px;
-  border: 1px solid rgba(223, 193, 126, .16);
+  border: 1px solid rgba(223, 193, 126, 0.16);
   border-radius: 4px;
-  background: rgba(0, 0, 0, .28);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .tz-panel-top {
@@ -449,7 +645,7 @@
   gap: 8px;
   color: var(--muted);
   font-size: 8px;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 .tz-radar {
@@ -461,7 +657,7 @@
 
 .tz-radar-grid {
   fill: none;
-  stroke: rgba(223, 193, 126, .43);
+  stroke: rgba(223, 193, 126, 0.43);
   stroke-width: 1;
 }
 
@@ -494,7 +690,7 @@
   gap: 8px;
   color: var(--muted);
   font-size: 7px;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .tz-radar-legend i {
@@ -508,7 +704,7 @@
 
 .tz-attribute-row {
   padding: 10px 0;
-  border-bottom: 1px solid rgba(223, 193, 126, .12);
+  border-bottom: 1px solid rgba(223, 193, 126, 0.12);
 }
 
 .tz-attribute-row:last-of-type {
@@ -549,6 +745,10 @@
   line-height: 1.6;
 }
 
+/* =========================================================
+   PROFILE EDITING
+   ========================================================= */
+
 .tz-profile-fields {
   display: flex;
   flex-direction: column;
@@ -556,11 +756,11 @@
 
 .tz-profile-row {
   display: grid;
-  grid-template-columns: 24px minmax(85px, .8fr) minmax(0, 1.2fr) 10px;
+  grid-template-columns: 24px minmax(85px, 0.8fr) minmax(0, 1.2fr) 10px;
   align-items: center;
   gap: 10px;
   min-height: 44px;
-  border-bottom: 1px solid rgba(223, 193, 126, .14);
+  border-bottom: 1px solid rgba(223, 193, 126, 0.14);
 }
 
 .tz-profile-row:last-child {
@@ -584,11 +784,12 @@
   overflow-wrap: anywhere;
 }
 
-.tz-profile-row input {
+.tz-profile-row input,
+.tz-profile-row select {
   width: 100%;
   min-width: 0;
   padding: 8px;
-  border: 1px solid rgba(223, 193, 126, .4);
+  border: 1px solid rgba(223, 193, 126, 0.4);
   border-radius: 3px;
   outline: none;
   background: #100f0c;
@@ -596,7 +797,8 @@
   font: 11px "DM Sans", sans-serif;
 }
 
-.tz-profile-row input:focus {
+.tz-profile-row input:focus,
+.tz-profile-row select:focus {
   border-color: var(--gold-light);
 }
 
@@ -609,6 +811,10 @@
 .tz-small-button {
   padding: 8px 13px;
 }
+
+/* =========================================================
+   STATS FOOTER
+   ========================================================= */
 
 .tz-stats-footer {
   padding: 17px;
@@ -631,12 +837,12 @@
 .tz-period-select select {
   appearance: none;
   padding: 10px 28px 10px 12px;
-  border: 1px solid rgba(223, 193, 126, .36);
+  border: 1px solid rgba(223, 193, 126, 0.36);
   border-radius: 3px;
   background: #0b0a08;
   color: var(--ivory);
   font: 9px "DM Sans", sans-serif;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .tz-period-select span {
@@ -653,16 +859,129 @@
   line-height: 1.7;
 }
 
+/* =========================================================
+   PAGE FOOTER
+   ========================================================= */
+
 .tz-player-footer {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding-top: 15px;
-  border-top: 1px solid rgba(223, 193, 126, .2);
+  border-top: 1px solid rgba(223, 193, 126, 0.2);
   color: var(--gold);
   font: 500 9px "Cormorant Garamond", serif;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
+
+/* =========================================================
+   PLAYER PORTRAIT EDITOR
+   ========================================================= */
+
+.tz-portrait-editor {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  margin: 20px 0;
+  color: var(--ivory);
+  background:
+    radial-gradient(ellipse at top left, #282014 0%, transparent 65%),
+    #0b0a08;
+  border: 1px solid rgba(205, 168, 93, 0.48);
+  border-radius: 12px;
+}
+
+.tz-portrait-editor__preview {
+  flex: 0 0 112px;
+  width: 112px;
+  height: 148px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #c6ae7b;
+  background: #18130b;
+  border: 1px solid #a98a4c;
+  border-radius: 5px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.tz-portrait-editor__preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  filter: sepia(0.28) contrast(1.06);
+}
+
+.tz-portrait-editor__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.tz-portrait-editor__content h3 {
+  margin: 0 0 8px;
+  color: #e4c888;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 16px;
+  letter-spacing: 0.14em;
+}
+
+.tz-portrait-editor__content p {
+  color: #b9b0a0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.tz-portrait-editor__button,
+.tz-portrait-editor__secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  color: var(--ivory);
+  background: #100e09;
+  border: 1px solid #b99a5b;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+
+.tz-portrait-editor__button:hover,
+.tz-portrait-editor__secondary:hover {
+  background: #282014;
+}
+
+.tz-portrait-editor__button:focus-visible,
+.tz-portrait-editor__secondary:focus-visible {
+  outline: 2px solid #e4c888;
+  outline-offset: 3px;
+}
+
+.tz-portrait-editor__button:disabled,
+.tz-portrait-editor__secondary:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.tz-portrait-editor__secondary {
+  margin-left: 8px;
+  border-color: #5d5037;
+}
+
+.tz-portrait-editor__message {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   MOBILE RESPONSIVENESS
+   ========================================================= */
 
 @media (max-width: 650px) {
   .tz-player-shell {
@@ -682,6 +1001,10 @@
   }
 
   .tz-legend-card {
+    width: min(100%, 370px);
+  }
+
+  .tz-png-card {
     width: min(100%, 370px);
   }
 
@@ -709,7 +1032,7 @@
   .tz-performance-strip span,
   .tz-performance-strip small {
     font-size: 7px;
-    letter-spacing: .04em;
+    letter-spacing: 0.04em;
   }
 
   .tz-attributes-panel,
@@ -735,7 +1058,7 @@
   }
 
   .tz-profile-row {
-    grid-template-columns: 22px minmax(82px, .8fr) minmax(0, 1.2fr);
+    grid-template-columns: 22px minmax(82px, 0.8fr) minmax(0, 1.2fr);
     gap: 8px;
   }
 
@@ -748,6 +1071,47 @@
   }
 }
 
+@media (max-width: 520px) {
+  .tz-portrait-editor {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .tz-portrait-editor__preview {
+    flex-basis: 82px;
+    width: 82px;
+    height: 112px;
+  }
+
+  .tz-portrait-editor__content h3 {
+    font-size: 13px;
+  }
+
+  .tz-portrait-editor__button,
+  .tz-portrait-editor__secondary {
+    width: 100%;
+    margin-left: 0;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 420px) {
+  .tz-png-attributes {
+    left: 18%;
+    width: 64%;
+    column-gap: 5%;
+  }
+
+  .tz-png-attributes strong {
+    font-size: clamp(14px, 4vw, 20px);
+  }
+
+  .tz-png-attributes span {
+    font-size: clamp(7px, 2vw, 10px);
+  }
+}
+
 @media (max-width: 380px) {
   .tz-player-shell {
     padding-inline: 10px;
@@ -755,7 +1119,7 @@
 
   .tz-player-header-right {
     font-size: 7px;
-    letter-spacing: .08em;
+    letter-spacing: 0.08em;
   }
 
   .tz-card-attributes strong {
@@ -772,9 +1136,13 @@
   }
 
   .tz-player-footer {
-    letter-spacing: .04em;
+    letter-spacing: 0.04em;
   }
 }
+
+/* =========================================================
+   ACCESSIBILITY
+   ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
   .tz-player *,

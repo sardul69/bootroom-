@@ -23,18 +23,19 @@ type PlayerCard = {
   position: string | null;
   preferred_foot: string | null;
   locality: string | null;
-  overall_rating: number;
-  pace: number;
-  shooting: number;
-  passing: number;
-  dribbling: number;
-  defending: number;
-  physical: number;
-  attack: number;
-  composure: number;
-  appearances: number;
-  goals: number;
-  assists: number;
+  avatar_url?: string | null;
+  overall_rating: number | null;
+  pace: number | null;
+  shooting: number | null;
+  passing: number | null;
+  dribbling: number | null;
+  defending: number | null;
+  physical: number | null;
+  attack: number | null;
+  composure: number | null;
+  appearances: number | null;
+  goals: number | null;
+  assists: number | null;
   average_rating: number | null;
   is_verified: boolean;
 };
@@ -85,6 +86,16 @@ function errorMessage(error: unknown) {
     : "Something went wrong. Please try again.";
 }
 
+function numberOrZero(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : 0;
+}
+
+function ratingText(value: number | null | undefined) {
+  return String(numberOrZero(value)).padStart(2, "0");
+}
+
 export default function PlayerPage() {
   const [userId, setUserId] = useState("");
   const [profile, setProfile] = useState<Profile>(emptyProfile());
@@ -94,6 +105,7 @@ export default function PlayerPage() {
   const [isManager, setIsManager] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingCard, setEditingCard] = useState(false);
+
   const [profileDraft, setProfileDraft] = useState({
     full_name: "",
     position: "",
@@ -101,20 +113,23 @@ export default function PlayerPage() {
     locality: "",
     skill: "",
   });
+
   const [cardDraft, setCardDraft] = useState<Record<CardNumberField, number>>({
-    overall_rating: 50,
-    pace: 50,
-    shooting: 50,
-    passing: 50,
-    dribbling: 50,
-    defending: 50,
-    physical: 50,
-    attack: 50,
-    composure: 50,
+    overall_rating: 0,
+    pace: 0,
+    shooting: 0,
+    passing: 0,
+    dribbling: 0,
+    defending: 0,
+    physical: 0,
+    attack: 0,
+    composure: 0,
     appearances: 0,
     goals: 0,
     assists: 0,
   });
+
+  const [averageRatingDraft, setAverageRatingDraft] = useState("");
   const [verifiedDraft, setVerifiedDraft] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -140,32 +155,32 @@ export default function PlayerPage() {
         setCard(null);
         setDirectory([]);
         setIsManager(false);
+        setSelectedId("");
         return;
       }
 
       setUserId(user.id);
 
-      const [profileResult, cardResult, managerResult] =
-        await Promise.all([
-          supabase
-            .from("profiles")
-            .select(
-              "id,full_name,position,preferred_foot,locality,skill,avatar_url"
-            )
-            .eq("id", user.id)
-            .maybeSingle(),
-          supabase
-            .from("player_cards")
-            .select("*")
-            .eq("profile_id", user.id)
-            .maybeSingle(),
-          supabase.rpc("can_manage_player_cards"),
-        ]);
+      const [profileResult, cardResult, managerResult] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "id,full_name,position,preferred_foot,locality,skill,avatar_url"
+          )
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("player_cards")
+          .select("*")
+          .eq("profile_id", user.id)
+          .maybeSingle(),
+        supabase.rpc("can_manage_player_cards"),
+      ]);
 
       if (profileResult.error) throw profileResult.error;
       if (cardResult.error) throw cardResult.error;
 
-      const currentProfile = profileResult.data ?? {
+      const currentProfile: Profile = profileResult.data ?? {
         ...emptyProfile(),
         id: user.id,
       };
@@ -179,10 +194,12 @@ export default function PlayerPage() {
         skill: currentProfile.skill ?? "",
       });
 
-      const manager = !managerResult.error && managerResult.data === true;
+      const manager =
+        !managerResult.error && managerResult.data === true;
+
       setIsManager(manager);
 
-      let currentCard = cardResult.data as PlayerCard | null;
+      let currentCard = (cardResult.data ?? null) as PlayerCard | null;
 
       if (manager) {
         const { data, error: directoryError } = await supabase.rpc(
@@ -199,7 +216,7 @@ export default function PlayerPage() {
           currentCard;
 
         setSelectedId((previous) =>
-          previous && players.some((p) => p.profile_id === previous)
+          previous && players.some((player) => player.profile_id === previous)
             ? previous
             : user.id
         );
@@ -212,20 +229,29 @@ export default function PlayerPage() {
 
       if (currentCard) {
         setCardDraft({
-          overall_rating: currentCard.overall_rating,
-          pace: currentCard.pace,
-          shooting: currentCard.shooting,
-          passing: currentCard.passing,
-          dribbling: currentCard.dribbling,
-          defending: currentCard.defending,
-          physical: currentCard.physical,
-          attack: currentCard.attack,
-          composure: currentCard.composure,
-          appearances: currentCard.appearances,
-          goals: currentCard.goals,
-          assists: currentCard.assists,
+          overall_rating: numberOrZero(currentCard.overall_rating),
+          pace: numberOrZero(currentCard.pace),
+          shooting: numberOrZero(currentCard.shooting),
+          passing: numberOrZero(currentCard.passing),
+          dribbling: numberOrZero(currentCard.dribbling),
+          defending: numberOrZero(currentCard.defending),
+          physical: numberOrZero(currentCard.physical),
+          attack: numberOrZero(currentCard.attack),
+          composure: numberOrZero(currentCard.composure),
+          appearances: numberOrZero(currentCard.appearances),
+          goals: numberOrZero(currentCard.goals),
+          assists: numberOrZero(currentCard.assists),
         });
-        setVerifiedDraft(currentCard.is_verified);
+
+        setAverageRatingDraft(
+          currentCard.average_rating == null
+            ? ""
+            : String(currentCard.average_rating)
+        );
+        setVerifiedDraft(Boolean(currentCard.is_verified));
+      } else {
+        setVerifiedDraft(false);
+        setAverageRatingDraft("");
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -245,48 +271,58 @@ export default function PlayerPage() {
     [directory, selectedId, userId, card]
   );
 
+  const viewingOwnProfile = selectedId === userId;
   const displayedCard =
-    isManager && selectedId !== userId ? selectedPlayer : card;
+    isManager && !viewingOwnProfile ? selectedPlayer : card;
 
   const displayedName =
-    (isManager && selectedId !== userId
+    (isManager && !viewingOwnProfile
       ? selectedPlayer?.full_name
       : profile.full_name) || "YOUR NAME";
 
   const displayedPosition =
-    (isManager && selectedId !== userId
+    (isManager && !viewingOwnProfile
       ? selectedPlayer?.position
       : profile.position) || "";
 
+  const displayedPhoto = viewingOwnProfile
+    ? profile.avatar_url
+    : selectedPlayer?.avatar_url ?? null;
+
   const displayedAttributes = ATTRIBUTE_FIELDS.map((attribute) => ({
     label: attribute.label,
-    value: displayedCard
-      ? displayedCard[attribute.key]
-      : 50,
+    key: attribute.key,
+    value: numberOrZero(displayedCard?.[attribute.key]),
   }));
 
   function choosePlayer(id: string) {
     setSelectedId(id);
     setEditingCard(false);
     setNotice("");
+    setError("");
+
     const next = directory.find((player) => player.profile_id === id);
 
     if (next) {
       setCardDraft({
-        overall_rating: next.overall_rating,
-        pace: next.pace,
-        shooting: next.shooting,
-        passing: next.passing,
-        dribbling: next.dribbling,
-        defending: next.defending,
-        physical: next.physical,
-        attack: next.attack,
-        composure: next.composure,
-        appearances: next.appearances,
-        goals: next.goals,
-        assists: next.assists,
+        overall_rating: numberOrZero(next.overall_rating),
+        pace: numberOrZero(next.pace),
+        shooting: numberOrZero(next.shooting),
+        passing: numberOrZero(next.passing),
+        dribbling: numberOrZero(next.dribbling),
+        defending: numberOrZero(next.defending),
+        physical: numberOrZero(next.physical),
+        attack: numberOrZero(next.attack),
+        composure: numberOrZero(next.composure),
+        appearances: numberOrZero(next.appearances),
+        goals: numberOrZero(next.goals),
+        assists: numberOrZero(next.assists),
       });
-      setVerifiedDraft(next.is_verified);
+
+      setAverageRatingDraft(
+        next.average_rating == null ? "" : String(next.average_rating)
+      );
+      setVerifiedDraft(Boolean(next.is_verified));
     }
   }
 
@@ -309,13 +345,13 @@ export default function PlayerPage() {
         })
         .eq("id", userId)
         .select(
-          "id,full_name,position,preferred_foot,locality,skill"
+          "id,full_name,position,preferred_foot,locality,skill,avatar_url"
         )
         .single();
 
       if (saveError) throw saveError;
 
-      setProfile(data);
+      setProfile(data as Profile);
       setEditingProfile(false);
       setNotice("Your profile has been saved.");
     } catch (err) {
@@ -336,14 +372,22 @@ export default function PlayerPage() {
     setNotice("");
 
     try {
-      const payload = {
-        ...cardDraft,
-        is_verified: verifiedDraft,
-      };
+      const average =
+        averageRatingDraft.trim() === ""
+          ? null
+          : Math.min(10, Math.max(0, Number(averageRatingDraft)));
+
+      if (average !== null && !Number.isFinite(average)) {
+        throw new Error("Enter a valid average rating between 0 and 10.");
+      }
 
       const { data, error: saveError } = await supabase
         .from("player_cards")
-        .update(payload)
+        .update({
+          ...cardDraft,
+          average_rating: average,
+          is_verified: verifiedDraft,
+        })
         .eq("profile_id", selectedId)
         .select("*")
         .single();
@@ -352,20 +396,15 @@ export default function PlayerPage() {
 
       const updatedCard = data as PlayerCard;
       setCard(updatedCard);
+
       setDirectory((players) =>
         players.map((player) =>
           player.profile_id === selectedId
-            ? {
-                ...player,
-                ...updatedCard,
-                full_name: player.full_name,
-                position: player.position,
-                preferred_foot: player.preferred_foot,
-                locality: player.locality,
-              }
+            ? { ...player, ...updatedCard }
             : player
         )
       );
+
       setEditingCard(false);
       setNotice("Official player card saved.");
     } catch (err) {
@@ -377,13 +416,16 @@ export default function PlayerPage() {
 
   function updateCardNumber(key: CardNumberField, rawValue: string) {
     const value = rawValue === "" ? 0 : Number(rawValue);
-    const max = key === "appearances" || key === "goals" || key === "assists"
-      ? 1000000
-      : 99;
+    const isCount =
+      key === "appearances" || key === "goals" || key === "assists";
+    const max = isCount ? 1000000 : 99;
 
     setCardDraft((current) => ({
       ...current,
-      [key]: Math.min(max, Math.max(0, Number.isFinite(value) ? value : 0)),
+      [key]: Math.min(
+        max,
+        Math.max(0, Number.isFinite(value) ? value : 0)
+      ),
     }));
   }
 
@@ -418,6 +460,21 @@ export default function PlayerPage() {
     );
   }
 
+  const cardStatRows = [
+    [
+      { label: "PAC", value: displayedCard?.pace },
+      { label: "DRI", value: displayedCard?.dribbling },
+    ],
+    [
+      { label: "SHO", value: displayedCard?.shooting },
+      { label: "DEF", value: displayedCard?.defending },
+    ],
+    [
+      { label: "PAS", value: displayedCard?.passing },
+      { label: "PHY", value: displayedCard?.physical },
+    ],
+  ];
+
   return (
     <main className="tz-player">
       <div className="tz-stadium-lights" aria-hidden="true" />
@@ -432,16 +489,8 @@ export default function PlayerPage() {
           </div>
         </header>
 
-        {error && (
-          <p className="tz-edit-note" role="alert">
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p className="tz-data-note" role="status">
-            {notice}
-          </p>
-        )}
+        {error && <p className="tz-edit-note" role="alert">{error}</p>}
+        {notice && <p className="tz-data-note" role="status">{notice}</p>}
 
         <div className="tz-player-toolbar">
           <Link href="/" className="tz-back-link">
@@ -477,10 +526,7 @@ export default function PlayerPage() {
                 onChange={(event) => choosePlayer(event.target.value)}
               >
                 {directory.map((player) => (
-                  <option
-                    key={player.profile_id}
-                    value={player.profile_id}
-                  >
+                  <option key={player.profile_id} value={player.profile_id}>
                     {player.full_name || "Unnamed player"} —{" "}
                     {player.position || "Position not set"}
                   </option>
@@ -502,58 +548,132 @@ export default function PlayerPage() {
             TURFZY ICON SERIES <span>01 / 99</span>
           </div>
 
-          <div className="tz-legend-card">
-            <div className="tz-card-topline">
-              <span>TZ</span><span>ICON EDITION</span>
-            </div>
-
-            <div className="tz-card-rating">
-              <strong>
-                {displayedCard
-                  ? String(displayedCard.overall_rating).padStart(2, "0")
-                  : "—"}
+          <div
+            className="tz-legend-card tz-png-player-card"
+            style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: "420px",
+              aspectRatio: "2 / 3",
+              marginInline: "auto",
+              overflow: "hidden",
+              backgroundImage:
+                "url('/brand/images/player-card/card-template.png')",
+              backgroundPosition: "center",
+              backgroundSize: "100% 100%",
+              backgroundRepeat: "no-repeat",
+              isolation: "isolate",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: "7%",
+                left: "8%",
+                width: "22%",
+                color: "#f4f1e8",
+                textShadow: "0 2px 8px #000",
+              }}
+            >
+              <strong style={{ display: "block", fontSize: "clamp(24px, 7vw, 40px)", lineHeight: 1 }}>
+                {ratingText(displayedCard?.overall_rating)}
               </strong>
-              <span>{displayedPosition ? displayedPosition.slice(0, 3).toUpperCase() : "POS"}</span>
-              <b>♛</b>
+              <span style={{ fontSize: "clamp(10px, 2.8vw, 14px)", fontWeight: 800 }}>
+                {displayedPosition ? displayedPosition.slice(0, 3).toUpperCase() : "POS"}
+              </span>
             </div>
 
-           <div className="tz-card-portrait" aria-label="Player portrait">
-  {profile?.avatar_url ? (
-    <img
-      src={profile.avatar_url}
-      alt="Player portrait"
-      className="tz-player-photo"
-    />
-  ) : (
-    <>
-      <div className="tz-portrait-halo" />
-      <div className="tz-portrait-head" />
-      <div className="tz-portrait-neck" />
-      <div className="tz-portrait-body" />
-      <div className="tz-portrait-light" />
-    </>
-  )}
-</div>
-            
+            {displayedPhoto && (
+              <img
+                src={displayedPhoto}
+                alt={`${displayedName} portrait`}
+                className="tz-player-photo"
+                style={{
+                  position: "absolute",
+                  top: "17%",
+                  left: "22%",
+                  width: "56%",
+                  height: "37%",
+                  objectFit: "contain",
+                  objectPosition: "center bottom",
+                  filter: "grayscale(1) sepia(.12) contrast(1.04)",
+                  mixBlendMode: "screen",
+                }}
+              />
+            )}
 
-            <div className="tz-card-identity">
-              <p className="tz-card-series">THE PLAYER BEHIND THE LEGEND</p>
-              <h1>{displayedName}</h1>
-              <div className="tz-card-crest-row"><span>✦</span><i /><span>⬟</span></div>
+            <div
+              style={{
+                position: "absolute",
+                top: "56%",
+                left: "7%",
+                right: "7%",
+                textAlign: "center",
+                color: "#f7f2e8",
+                textShadow: "0 2px 8px #000",
+                overflowWrap: "anywhere",
+              }}
+            >
+              <div style={{ fontSize: "clamp(8px, 2vw, 11px)", letterSpacing: ".18em" }}>
+                THE PLAYER BEHIND THE LEGEND
+              </div>
+              <h1 style={{ margin: "5px 0 0", fontSize: "clamp(17px, 5vw, 27px)", lineHeight: 1.1 }}>
+                {displayedName}
+              </h1>
+              <div style={{ marginTop: "5px", fontSize: "clamp(9px, 2.5vw, 13px)", letterSpacing: ".12em" }}>
+                {displayedPosition.toUpperCase()}
+              </div>
             </div>
 
-            <div className="tz-card-attributes">
-              {displayedAttributes.map((item) => (
-                <div key={item.label}>
-                  <strong>{item.value}</strong>
-                  <span>{item.label.slice(0, 3).toUpperCase()}</span>
+            <div
+              style={{
+                position: "absolute",
+                left: "12%",
+                right: "12%",
+                top: "69%",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "clamp(5px, 2vw, 12px) clamp(14px, 5vw, 30px)",
+                color: "#f7f2e8",
+                textShadow: "0 2px 6px #000",
+              }}
+            >
+              {cardStatRows.flat().map((stat) => (
+                <div
+                  key={stat.label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: "8px",
+                    borderBottom: "1px solid #c8b98b88",
+                    paddingBottom: "4px",
+                  }}
+                >
+                  <span style={{ fontSize: "clamp(10px, 2.7vw, 14px)", fontWeight: 800 }}>
+                    {stat.label}
+                  </span>
+                  <strong style={{ fontSize: "clamp(15px, 4vw, 21px)" }}>
+                    {ratingText(stat.value)}
+                  </strong>
                 </div>
               ))}
             </div>
 
-            <div className="tz-card-footer">
-              <span>BUILT FOR THE GAME</span>
-              <strong>LEGENDS ARE MADE.</strong>
+            <div
+              style={{
+                position: "absolute",
+                bottom: "4.2%",
+                left: "8%",
+                right: "8%",
+                textAlign: "center",
+                color: "#f7f2e8",
+                fontSize: "clamp(8px, 2.1vw, 11px)",
+                letterSpacing: ".16em",
+                textShadow: "0 2px 6px #000",
+              }}
+            >
+              EST. 2026–2027
             </div>
           </div>
 
@@ -567,24 +687,42 @@ export default function PlayerPage() {
           </p>
         </section>
 
-        
-{selectedId === userId && (
-  <PlayerPhotoUpload
-    userId={userId}
-    currentPhoto={profile.avatar_url}
-    onUploaded={(url) =>
-      setProfile((current) => ({
-        ...current,
-        avatar_url: url.split("?")[0],
-      }))
-    }
-  />
-)}
+        {viewingOwnProfile && (
+          <PlayerPhotoUpload
+            userId={userId}
+            currentPhoto={profile.avatar_url}
+            onUploaded={(url) => {
+              const cleanUrl = url.split("?")[0];
+              setProfile((current) => ({
+                ...current,
+                avatar_url: cleanUrl,
+              }));
+            }}
+            onRemoved={() => {
+              setProfile((current) => ({
+                ...current,
+                avatar_url: null,
+              }));
+            }}
+          />
+        )}
 
         <section className="tz-performance-strip">
-          <div><span>GAMES</span><strong>{displayedCard?.appearances ?? "—"}</strong><small>APPEARANCES</small></div>
-          <div><span>GOALS</span><strong>{displayedCard?.goals ?? "—"}</strong><small>FINISHING</small></div>
-          <div><span>ASSISTS</span><strong>{displayedCard?.assists ?? "—"}</strong><small>CREATIVITY</small></div>
+          <div>
+            <span>GAMES</span>
+            <strong>{displayedCard?.appearances ?? "—"}</strong>
+            <small>APPEARANCES</small>
+          </div>
+          <div>
+            <span>GOALS</span>
+            <strong>{displayedCard?.goals ?? "—"}</strong>
+            <small>FINISHING</small>
+          </div>
+          <div>
+            <span>ASSISTS</span>
+            <strong>{displayedCard?.assists ?? "—"}</strong>
+            <small>CREATIVITY</small>
+          </div>
           <div>
             <span>RATING</span>
             <strong>
@@ -608,9 +746,7 @@ export default function PlayerPage() {
             <div className="tz-profile-fields">
               {CARD_FIELDS.map((field) => (
                 <div className="tz-profile-row" key={field.key}>
-                  <label htmlFor={`tz-card-${field.key}`}>
-                    {field.label}
-                  </label>
+                  <label htmlFor={`tz-card-${field.key}`}>{field.label}</label>
                   <input
                     id={`tz-card-${field.key}`}
                     type="number"
@@ -630,31 +766,20 @@ export default function PlayerPage() {
                   />
                 </div>
               ))}
+
               <div className="tz-profile-row">
                 <label htmlFor="tz-card-average">Average match rating (0–10)</label>
                 <input
                   id="tz-card-average"
                   type="number"
-                  min="0"
-                  max="10"
-                  step="0.01"
-                  value={displayedCard?.average_rating ?? ""}
-                  placeholder="Leave unchanged if unavailable"
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    if (raw === "") {
-                      setCard((current) =>
-                        current ? { ...current, average_rating: null } : current
-                      );
-                    } else {
-                      const value = Math.min(10, Math.max(0, Number(raw)));
-                      setCard((current) =>
-                        current ? { ...current, average_rating: value } : current
-                      );
-                    }
-                  }}
+                  min={0}
+                  max={10}
+                  step={0.01}
+                  value={averageRatingDraft}
+                  onChange={(event) => setAverageRatingDraft(event.target.value)}
                 />
               </div>
+
               <div className="tz-profile-row">
                 <label htmlFor="tz-verified">Mark card as verified</label>
                 <input
@@ -698,7 +823,10 @@ export default function PlayerPage() {
                   </linearGradient>
                   <filter id="tzRadarGlow">
                     <feGaussianBlur stdDeviation="3" result="blur" />
-                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
                   </filter>
                 </defs>
                 <g className="tz-radar-grid">
@@ -718,7 +846,7 @@ export default function PlayerPage() {
                   className="tz-radar-area"
                   points={
                     displayedCard
-                      ? `180,${165 - displayedCard.attack * 1.3} ${180 + displayedCard.defending * 1.35},165 180,${165 + displayedCard.composure * 1.3} ${180 - displayedCard.overall_rating * 1.35},165`
+                      ? `180,${165 - numberOrZero(displayedCard.attack) * 1.3} ${180 + numberOrZero(displayedCard.defending) * 1.35},165 180,${165 + numberOrZero(displayedCard.composure) * 1.3} ${180 - numberOrZero(displayedCard.overall_rating) * 1.35},165`
                       : "180,165 180,165 180,165 180,165"
                   }
                 />
@@ -726,7 +854,7 @@ export default function PlayerPage() {
                   className="tz-radar-line"
                   points={
                     displayedCard
-                      ? `180,${165 - displayedCard.attack * 1.3} ${180 + displayedCard.defending * 1.35},165 180,${165 + displayedCard.composure * 1.3} ${180 - displayedCard.overall_rating * 1.35},165`
+                      ? `180,${165 - numberOrZero(displayedCard.attack) * 1.3} ${180 + numberOrZero(displayedCard.defending) * 1.35},165 180,${165 + numberOrZero(displayedCard.composure) * 1.3} ${180 - numberOrZero(displayedCard.overall_rating) * 1.35},165`
                       : "180,165 180,165 180,165 180,165"
                   }
                   filter="url(#tzRadarGlow)"
@@ -739,11 +867,18 @@ export default function PlayerPage() {
             </div>
 
             <div className="tz-attribute-list">
-              <div className="tz-panel-top"><span>CORE ATTRIBUTES</span><span>RATING</span></div>
+              <div className="tz-panel-top">
+                <span>CORE ATTRIBUTES</span><span>RATING</span>
+              </div>
               {displayedAttributes.map((item) => (
                 <div className="tz-attribute-row" key={item.label}>
-                  <div><span>{item.label}</span><strong>{item.value}</strong></div>
-                  <div className="tz-meter"><i style={{ width: item.value + "%" }} /></div>
+                  <div>
+                    <span>{item.label}</span>
+                    <strong>{ratingText(item.value)}</strong>
+                  </div>
+                  <div className="tz-meter">
+                    <i style={{ width: `${item.value}%` }} />
+                  </div>
                 </div>
               ))}
               {!displayedCard && (
@@ -796,11 +931,11 @@ export default function PlayerPage() {
                 <span className="tz-field-icon">
                   {["♙", "⚑", "⌁", "⌖", "♧"][index]}
                 </span>
-                <label htmlFor={"tz-" + key}>{label}</label>
+                <label htmlFor={`tz-${key}`}>{label}</label>
                 {editingProfile ? (
                   key === "preferred_foot" ? (
                     <select
-                      id={"tz-" + key}
+                      id={`tz-${key}`}
                       value={profileDraft[key]}
                       onChange={(event) =>
                         setProfileDraft((current) => ({
@@ -816,7 +951,7 @@ export default function PlayerPage() {
                     </select>
                   ) : (
                     <input
-                      id={"tz-" + key}
+                      id={`tz-${key}`}
                       value={profileDraft[key]}
                       placeholder={placeholder}
                       onChange={(event) =>
@@ -855,10 +990,7 @@ export default function PlayerPage() {
               <h2>PROGRESS, NOT PROMISES.</h2>
             </div>
             <label className="tz-period-select">
-              <select
-                value={period}
-                onChange={(event) => setPeriod(event.target.value)}
-              >
+              <select value={period} onChange={(event) => setPeriod(event.target.value)}>
                 <option>ALL TIME</option>
                 <option>THIS SEASON</option>
                 <option>LAST 30 DAYS</option>
