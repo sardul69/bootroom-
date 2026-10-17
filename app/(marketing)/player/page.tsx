@@ -1,6 +1,7 @@
 
 "use client";
 
+import PlayerPhotoUpload from "./PlayerPhotoUpload";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -13,6 +14,7 @@ type Profile = {
   preferred_foot: string | null;
   locality: string | null;
   skill: string | null;
+  avatar_url: string | null;
 };
 
 type PlayerCard = {
@@ -73,6 +75,7 @@ function emptyProfile(): Profile {
     preferred_foot: "",
     locality: "",
     skill: "",
+    avatar_url: null,
   };
 }
 
@@ -147,7 +150,7 @@ export default function PlayerPage() {
           supabase
             .from("profiles")
             .select(
-              "id,full_name,position,preferred_foot,locality,skill"
+              "id,full_name,position,preferred_foot,locality,skill,avatar_url"
             )
             .eq("id", user.id)
             .maybeSingle(),
@@ -514,13 +517,24 @@ export default function PlayerPage() {
               <b>♛</b>
             </div>
 
-            <div className="tz-card-portrait" aria-label="Faceless player silhouette">
-              <div className="tz-portrait-halo" />
-              <div className="tz-portrait-head" />
-              <div className="tz-portrait-neck" />
-              <div className="tz-portrait-body" />
-              <div className="tz-portrait-light" />
-            </div>
+           <div className="tz-card-portrait" aria-label="Player portrait">
+  {profile?.avatar_url ? (
+    <img
+      src={profile.avatar_url}
+      alt="Player portrait"
+      className="tz-player-photo"
+    />
+  ) : (
+    <>
+      <div className="tz-portrait-halo" />
+      <div className="tz-portrait-head" />
+      <div className="tz-portrait-neck" />
+      <div className="tz-portrait-body" />
+      <div className="tz-portrait-light" />
+    </>
+  )}
+</div>
+            
 
             <div className="tz-card-identity">
               <p className="tz-card-series">THE PLAYER BEHIND THE LEGEND</p>
@@ -552,6 +566,20 @@ export default function PlayerPage() {
               : "UNVERIFIED — OFFICIAL RATINGS AWAIT REVIEW"}
           </p>
         </section>
+
+        
+{selectedId === userId && (
+  <PlayerPhotoUpload
+    userId={userId}
+    currentPhoto={profile.avatar_url}
+    onUploaded={(url) =>
+      setProfile((current) => ({
+        ...current,
+        avatar_url: url.split("?")[0],
+      }))
+    }
+  />
+)}
 
         <section className="tz-performance-strip">
           <div><span>GAMES</span><strong>{displayedCard?.appearances ?? "—"}</strong><small>APPEARANCES</small></div>
