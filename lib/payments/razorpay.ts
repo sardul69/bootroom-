@@ -4,6 +4,9 @@ import "server-only";
 import crypto from "node:crypto";
 
 const RAZORPAY_API = "https://api.razorpay.com/v1";
+const REQUEST_TIMEOUT_MS = 10_000;
+
+type RazorpayMode = "test" | "live";
 
 type RazorpayOrder = {
   id: string;
@@ -32,29 +35,64 @@ type RazorpayPayment = {
   amount_refunded: number;
 };
 
-function getCredentials() {
-  const keyId = process.env.RAZORPAY_KEY_ID;
+type RazorpayCredentials = {
+  keyId: string;
+  keySecret: string;
+  mode: RazorpayMode;
+};
+
+function getCredentials(): RazorpayCredentials {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const expectedMode = process.env.RAZORPAY_EXPECTED_MODE?.trim();
 
-  if (!keyId || !keySecret) {
-    throw new Error("Razorpay server credentials are not configured");
+  if (!keyId || !keySecret?.trim()) {
+    throw new Error("Razorpay server credentials are not configured.");
   }
 
-  if (
-    !/^rzp_(test|live)_/.test(keyId) ||
-    keySecret.length === 0
-  ) {
-    throw new Error("Razorpay server credentials are invalid");
+  if (expectedMode !== "test" && expectedMode !== "live") {
+    throw new Error(
+      "Set RAZORPAY_EXPECTED_MODE to exactly 'test' or 'live'."
+    );
   }
 
-  return { keyId, keySecret };
+  const match = /^rzp_(test|live)_[A-Za-z0-9]+$/.exec(keyId);
+
+  if (!match) {
+    throw new Error("Razorpay Key ID has an invalid format.");
+  }
+
+  const mode = match[1] as RazorpayMode;
+
+  if (mode !== expectedMode) {
+    throw new Error(
+      `Razorpay environment mismatch: expected ${expectedMode}, received ${mode}.`
+    );
+  }
+
+  return { keyId, keySecret, mode };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function isSafeIdentifier(
+  value: unknown,
+  prefix: "order_" | "pay_"
+): value is string {
+  return (
+    typeof value === "string" &&
+    new RegExp(`^${prefix}[A-Za-z0-9]+$`).test(value)
+  );
 }
 
 function safeEqualHex(expected: Buffer, receivedHex: string): boolean {
-  if (
-    typeof receivedHex !== "string" ||
-    !/^[a-f0-9]{64}$/i.test(receivedHex)
-  ) {
+  if (!/^[a-f0-9]{64}$/i.test(receivedHex)) {
     return false;
   }
 
@@ -66,44 +104,157 @@ function safeEqualHex(expected: Buffer, receivedHex: string): boolean {
   );
 }
 
-function signatureFor(
-  secret: string,
-  message: string
-): Buffer {
+function signatureFor(secret: string, message: string): Buffer {
   return crypto
     .createHmac("sha256", secret)
     .update(message, "utf8")
     .digest();
 }
 
+function validateOrder(
+  value: unknown,
+  expectedAmount?: number
+): RazorpayOrder {
+  if (
+    !isRecord(value) ||
+    value.entity !== "order" ||
+    !isSafeIdentifier(value.id, "order_") ||
+    !Number.isSafeInteger(value.amount) ||
+    !Number.isSafeInteger(value.amount_paid) ||
+    !Number.isSafeInteger(value.amount_due) ||
+    Number(value.amount) <= 0 ||
+    Number(value.amount_paid) < 0 ||
+    Number(value.amount_due) < 0 ||
+    Number(value.amount_paid) > Number(value.amount) ||
+    Number(value.amount_due) > Number(value.amount) ||
+    Number(value.amount_paid) + Number(value.amount_due) !==
+      Number(value.amount) ||
+    value.currency !== "INR" ||
+    !["created", "attempted", "paid"].includes(String(value.status)) ||
+    !(
+      value.receipt === null ||
+      (typeof value.receipt === "string" &&
+        value.receipt.length <= 40)
+    ) ||
+    (expectedAmount !== undefined && value.amount !== expectedAmount)
+  ) {
+    throw new Error("Razorpay returned an invalid order response.");
+  }
+
+  return value as unknown as RazorpayOrder;
+}
+
+function validatePayment(value: unknown): RazorpayPayment {
+  if (
+    !isRecord(value) ||
+    value.entity !== "payment" ||
+    !isSafeIdentifier(value.id, "pay_") ||
+    !(
+      value.order_id === null ||
+      isSafeIdentifier(value.order_id, "order_")
+    ) ||
+    !Number.isSafeInteger(value.amount) ||
+    Number(value.amount) <= 0 ||
+    value.currency !== "INR" ||
+    !["created", "authorized", "captured", "refunded", "failed"].includes(
+      String(value.status)
+    ) ||
+    typeof value.captured !== "boolean" ||
+    !Number.isSafeInteger(value.amount_refunded) ||
+    Number(value.amount_refunded) < 0 ||
+    Number(value.amount_refunded) > Number(value.amount)
+  ) {
+    throw new Error("Razorpay returned an invalid payment response.");
+  }
+
+  // A refunded payment was previously captured; do not reject it
+  // merely because its current status is "refunded".
+  if (
+    (value.status === "captured" || value.status === "refunded") &&
+    value.captured !== true
+  ) {
+    throw new Error("Razorpay payment status is inconsistent.");
+  }
+
+  if (
+    (value.status === "created" ||
+      value.status === "authorized" ||
+      value.status === "failed") &&
+    value.captured !== false
+  ) {
+    throw new Error("Razorpay payment status is inconsistent.");
+  }
+
+  if (
+    value.status === "refunded" &&
+    Number(value.amount_refunded) <= 0
+  ) {
+    throw new Error("Razorpay refund details are inconsistent.");
+  }
+
+  return value as unknown as RazorpayPayment;
+}
+
 async function razorpayRequest<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  const { keyId, keySecret } = getCredentials();
-
-  const response = await fetch(`${RAZORPAY_API}${path}`, {
-    ...init,
-    headers: {
-      Authorization:
-        "Basic " +
-        Buffer.from(`${keyId}:${keySecret}`).toString("base64"),
-      Accept: "application/json",
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-    cache: "no-store",
-    signal: init?.signal ?? AbortSignal.timeout(10_000),
-  });
-
-  if (!response.ok) {
-    // Do not expose credentials or raw provider responses.
-    throw new Error(
-      `Razorpay API request failed with HTTP ${response.status}`
-    );
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    throw new Error("Invalid Razorpay API path.");
   }
 
-  return (await response.json()) as T;
+  const { keyId, keySecret } = getCredentials();
+  const controller = new AbortController();
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS
+  );
+
+  try {
+    const headers = new Headers(init?.headers);
+
+    headers.set(
+      "Authorization",
+      `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`
+    );
+    headers.set("Accept", "application/json");
+
+    if (init?.body) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const response = await fetch(`${RAZORPAY_API}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Razorpay API request failed with HTTP ${response.status}.`
+      );
+    }
+
+    let data: unknown;
+
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error("Razorpay returned an invalid response.");
+    }
+
+    return data as T;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Razorpay request timed out.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function createRazorpayOrder(input: {
@@ -111,35 +262,36 @@ export async function createRazorpayOrder(input: {
   receipt: string;
   notes?: Record<string, string>;
 }): Promise<RazorpayOrder> {
-  if (
-    !Number.isSafeInteger(input.amount) ||
-    input.amount <= 0
-  ) {
-    throw new Error("Order amount must be a positive integer in paise");
+  if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
+    throw new Error("Order amount must be a positive integer in paise.");
   }
 
   if (
     typeof input.receipt !== "string" ||
-    input.receipt.length === 0 ||
+    input.receipt.trim().length === 0 ||
     input.receipt.length > 40
   ) {
-    throw new Error("Invalid Razorpay order receipt");
+    throw new Error("Invalid Razorpay order receipt.");
   }
 
   if (
     input.notes &&
-    Object.entries(input.notes).some(
-      ([key, value]) =>
-        !key ||
-        key.length > 256 ||
-        typeof value !== "string" ||
-        value.length > 256
+    (
+      !isRecord(input.notes) ||
+      Object.keys(input.notes).length > 15 ||
+      Object.entries(input.notes).some(
+        ([key, value]) =>
+          !key ||
+          key.length > 256 ||
+          typeof value !== "string" ||
+          value.length > 256
+      )
     )
   ) {
-    throw new Error("Invalid Razorpay order notes");
+    throw new Error("Invalid Razorpay order notes.");
   }
 
-  const order = await razorpayRequest<RazorpayOrder>("/orders", {
+  const result = await razorpayRequest<unknown>("/orders", {
     method: "POST",
     body: JSON.stringify({
       amount: input.amount,
@@ -149,15 +301,7 @@ export async function createRazorpayOrder(input: {
     }),
   });
 
-  if (
-    !order.id ||
-    order.amount !== input.amount ||
-    order.currency !== "INR"
-  ) {
-    throw new Error("Razorpay returned an unexpected order");
-  }
-
-  return order;
+  return validateOrder(result, input.amount);
 }
 
 export function verifyRazorpaySignature(
@@ -166,50 +310,49 @@ export function verifyRazorpaySignature(
   signature: string
 ): boolean {
   if (
-    typeof orderId !== "string" ||
-    !orderId.startsWith("order_") ||
-    typeof paymentId !== "string" ||
-    !paymentId.startsWith("pay_")
+    !isSafeIdentifier(orderId, "order_") ||
+    !isSafeIdentifier(paymentId, "pay_") ||
+    typeof signature !== "string" ||
+    !/^[a-f0-9]{64}$/i.test(signature)
   ) {
     return false;
   }
 
   const { keySecret } = getCredentials();
-
-  return safeEqualHex(
-    signatureFor(keySecret, `${orderId}|${paymentId}`),
-    signature
+  const expected = signatureFor(
+    keySecret,
+    `${orderId}|${paymentId}`
   );
+
+  return safeEqualHex(expected, signature);
 }
 
 export async function fetchRazorpayOrder(
   orderId: string
 ): Promise<RazorpayOrder> {
-  if (
-    typeof orderId !== "string" ||
-    !/^order_[A-Za-z0-9]+$/.test(orderId)
-  ) {
-    throw new Error("Invalid Razorpay order ID");
+  if (!isSafeIdentifier(orderId, "order_")) {
+    throw new Error("Invalid Razorpay order ID.");
   }
 
-  return razorpayRequest<RazorpayOrder>(
+  const result = await razorpayRequest<unknown>(
     `/orders/${encodeURIComponent(orderId)}`
   );
+
+  return validateOrder(result);
 }
 
 export async function fetchRazorpayPayment(
   paymentId: string
 ): Promise<RazorpayPayment> {
-  if (
-    typeof paymentId !== "string" ||
-    !/^pay_[A-Za-z0-9]+$/.test(paymentId)
-  ) {
-    throw new Error("Invalid Razorpay payment ID");
+  if (!isSafeIdentifier(paymentId, "pay_")) {
+    throw new Error("Invalid Razorpay payment ID.");
   }
 
-  return razorpayRequest<RazorpayPayment>(
+  const result = await razorpayRequest<unknown>(
     `/payments/${encodeURIComponent(paymentId)}`
   );
+
+  return validatePayment(result);
 }
 
 export function verifyRazorpayWebhook(
@@ -220,14 +363,14 @@ export function verifyRazorpayWebhook(
 
   if (
     typeof rawBody !== "string" ||
-    !webhookSecret ||
-    !webhookSecret.length
+    !webhookSecret?.trim() ||
+    typeof signature !== "string" ||
+    !/^[a-f0-9]{64}$/i.test(signature)
   ) {
     return false;
   }
 
-  return safeEqualHex(
-    signatureFor(webhookSecret, rawBody),
-    signature
-  );
+  const expected = signatureFor(webhookSecret, rawBody);
+
+  return safeEqualHex(expected, signature);
 }
