@@ -1,82 +1,209 @@
 
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { createRazorpayOrder } from '@/lib/payments/razorpay';
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createRazorpayOrder } from "@/lib/payments/razorpay";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status });
+type FailureStage =
+  | "AUTH"
+  | "REQUEST"
+  | "CONFIG"
+  | "GAME_LOOKUP"
+  | "GAME_VALIDATION"
+  | "JOIN_GAME"
+  | "PAYMENT_LOOKUP"
+  | "ORDER_CREATION"
+  | "ORDER_VALIDATION"
+  | "PAYMENT_PERSISTENCE"
+  | "UNEXPECTED";
+
+function jsonError(
+  stage: FailureStage,
+  message: string,
+  status: number,
+  requestId: string
+) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: message,
+      diagnosticCode: stage,
+      requestId,
+    },
+    {
+      status,
+      headers: { "Cache-Control": "no-store" },
+    }
+  );
+}
+
+function logFailure(
+  stage: FailureStage,
+  requestId: string,
+  error?: unknown,
+  extra: Record<string, string | number | boolean | null> = {}
+) {
+  // Never log secrets, request bodies, signatures, or payment credentials.
+  console.error(
+    JSON.stringify({
+      event: "turfzy_payment_start_failure",
+      stage,
+      requestId,
+      error:
+        error instanceof Error
+          ? error.message
+          : error == null
+            ? undefined
+            : String(error),
+      ...extra,
+    })
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function POST(req: Request) {
+  const requestId = crypto.randomUUID();
+
   try {
-    // 1. Authenticate the player using the server-side Supabase session.
-    const authClient = await createClient();
+    // 1. Authenticate the player.
+    let authClient;
+
+    try {
+      authClient = await createClient();
+    } catch (error) {
+      logFailure("AUTH", requestId, error);
+      return jsonError(
+        "AUTH",
+        "Unable to check your sign-in session.",
+        503,
+        requestId
+      );
+    }
+
     const {
       data: { user },
       error: authError,
     } = await authClient.auth.getUser();
 
     if (authError || !user) {
-      return jsonError('Please sign in to join this game.', 401);
+      if (authError) logFailure("AUTH", requestId, authError);
+      return jsonError(
+        "AUTH",
+        "Please sign in to join this game.",
+        401,
+        requestId
+      );
     }
 
-    // 2. Accept only a valid JSON request.
+    // 2. Validate the request.
     let body: unknown;
 
     try {
       body = await req.json();
     } catch {
-      return jsonError('Invalid request body.', 400);
+      return jsonError(
+        "REQUEST",
+        "Invalid JSON request.",
+        400,
+        requestId
+      );
     }
 
     if (
-      !body ||
-      typeof body !== 'object' ||
-      !('gameId' in body) ||
-      typeof body.gameId !== 'string' ||
-      body.gameId.trim().length === 0 ||
-      body.gameId.length > 100
+      !isRecord(body) ||
+      typeof body.gameId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        body.gameId
+      )
     ) {
-      return jsonError('A valid gameId is required.', 400);
+      return jsonError(
+        "REQUEST",
+        "A valid game ID is required.",
+        400,
+        requestId
+      );
     }
 
-    const gameId = body.gameId.trim();
+    const gameId = body.gameId;
 
-    // 3. Never create an order without the configured public Key ID.
-    const keyId = process.env.RAZORPAY_KEY_ID;
+    // 3. Check the expected Razorpay environment.
+    const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+    const expectedMode = process.env.RAZORPAY_EXPECTED_MODE?.trim();
 
-    if (!keyId) {
-      console.error('Razorpay configuration error: missing Key ID.');
-      return jsonError('Payments are temporarily unavailable.', 503);
+    if (
+      !keyId ||
+      !process.env.RAZORPAY_KEY_SECRET?.trim() ||
+      (expectedMode !== "live" && expectedMode !== "test") ||
+      !keyId.startsWith(`rzp_${expectedMode}_`)
+    ) {
+      logFailure("CONFIG", requestId, undefined, {
+        keyIdPresent: Boolean(keyId),
+        keySecretPresent: Boolean(process.env.RAZORPAY_KEY_SECRET?.trim()),
+        expectedModeValid: expectedMode === "live" || expectedMode === "test",
+        keyModeMatches:
+          Boolean(keyId) &&
+          (expectedMode === "live" || expectedMode === "test") &&
+          keyId!.startsWith(`rzp_${expectedMode}_`),
+      });
+
+      return jsonError(
+        "CONFIG",
+        "Payments are temporarily unavailable because the payment configuration is invalid.",
+        503,
+        requestId
+      );
     }
 
-    const supabase = createAdminClient();
+    let supabase;
 
-    // 4. Read the game and its fee from the database, never from the client.
+    try {
+      supabase = createAdminClient();
+    } catch (error) {
+      logFailure("GAME_LOOKUP", requestId, error);
+      return jsonError(
+        "GAME_LOOKUP",
+        "Unable to load this game.",
+        503,
+        requestId
+      );
+    }
+
+    // 4. Read the authoritative game fee.
     const { data: game, error: gameError } = await supabase
-      .from('games')
-      .select('id, player_fee, status')
-      .eq('id', gameId)
+      .from("games")
+      .select("id, player_fee, status")
+      .eq("id", gameId)
       .maybeSingle();
 
     if (gameError) {
-      console.error('Unable to read game:', gameError.message);
-      return jsonError('Unable to load this game.', 500);
+      logFailure("GAME_LOOKUP", requestId, gameError);
+      return jsonError(
+        "GAME_LOOKUP",
+        "Unable to load this game.",
+        500,
+        requestId
+      );
     }
 
     if (!game) {
-      return jsonError('Game not found.', 404);
+      return jsonError("GAME_LOOKUP", "Game not found.", 404, requestId);
     }
 
-    if (game.status !== 'OPEN') {
-      return jsonError('This game is no longer open.', 409);
+    if (game.status !== "OPEN") {
+      return jsonError(
+        "GAME_VALIDATION",
+        "This game is no longer open.",
+        409,
+        requestId
+      );
     }
 
-    // 5. Validate the database fee before converting it to paise.
     const amount = Number(game.player_fee);
     const amountInPaise = Math.round(amount * 100);
 
@@ -84,111 +211,142 @@ export async function POST(req: Request) {
       !Number.isFinite(amount) ||
       amount <= 0 ||
       !Number.isSafeInteger(amountInPaise) ||
-      amountInPaise <= 0
+      amountInPaise <= 0 ||
+      Math.abs(amount * 100 - amountInPaise) > 1e-7
     ) {
-      console.error('Invalid player fee for game:', game.id);
-      return jsonError('This game has an invalid player fee.', 500);
+      logFailure("GAME_VALIDATION", requestId, undefined, { gameId });
+      return jsonError(
+        "GAME_VALIDATION",
+        "This game's player fee is invalid.",
+        500,
+        requestId
+      );
     }
 
-    // 6. Create or retrieve the player's game entry.
-    // IMPORTANT: join_game must be concurrency-safe and must not itself
-    // mark the player as paid or the payment as captured.
+    // 5. Create or retrieve the pending player entry.
     const { data: playerResult, error: joinError } =
-      await authClient.rpc('join_game', {
+      await authClient.rpc("join_game", {
         p_game_id: game.id,
         p_user_id: user.id,
       });
 
     if (joinError || !playerResult) {
-      console.error(
-        'Unable to reserve game entry:',
-        joinError?.message ?? 'No player entry returned'
+      logFailure("JOIN_GAME", requestId, joinError, { gameId });
+      return jsonError(
+        "JOIN_GAME",
+        "Unable to reserve your place in this game.",
+        409,
+        requestId
       );
-      return jsonError('Unable to reserve your place in this game.', 409);
     }
 
     const playerRow = Array.isArray(playerResult)
       ? playerResult[0]
       : playerResult;
 
-    if (!playerRow?.id || typeof playerRow.id !== 'string') {
-      console.error('join_game returned an invalid player entry.');
-      return jsonError('Unable to prepare your game entry.', 500);
+    if (!playerRow?.id || typeof playerRow.id !== "string") {
+      logFailure("JOIN_GAME", requestId, undefined, { gameId });
+      return jsonError(
+        "JOIN_GAME",
+        "Unable to prepare your game entry.",
+        500,
+        requestId
+      );
     }
 
-    // 7. Inspect the existing payment before creating another order.
+    // 6. Check the existing payment before creating any new order.
     const { data: existingPayment, error: paymentLookupError } =
       await supabase
-        .from('game_payments')
-        .select('id, user_id, provider, provider_order_id, amount, status')
-        .eq('game_player_id', playerRow.id)
+        .from("game_payments")
+        .select("id, user_id, provider, provider_order_id, amount, status")
+        .eq("game_player_id", playerRow.id)
         .maybeSingle();
 
     if (paymentLookupError) {
-      console.error(
-        'Unable to inspect existing payment:',
-        paymentLookupError.message
+      logFailure("PAYMENT_LOOKUP", requestId, paymentLookupError, {
+        gamePlayerId: playerRow.id,
+      });
+      return jsonError(
+        "PAYMENT_LOOKUP",
+        "Unable to check your existing payment.",
+        500,
+        requestId
       );
-      return jsonError('Unable to check your payment. Please retry later.', 500);
     }
 
     if (existingPayment) {
       if (
         existingPayment.user_id !== user.id ||
-        existingPayment.provider !== 'razorpay'
+        existingPayment.provider !== "razorpay"
       ) {
-        return jsonError('Payment record does not match this player.', 409);
-      }
-
-      if (existingPayment.status === 'CAPTURED') {
-        return NextResponse.json(
-          {
-            error: 'Payment is already recorded. Check your booking.',
-            paymentCaptured: true,
-          },
-          { status: 409 }
+        return jsonError(
+          "PAYMENT_LOOKUP",
+          "Payment record does not match this player.",
+          409,
+          requestId
         );
       }
 
-      // Reuse only an order whose payment is still awaiting completion.
+      if (existingPayment.status === "CAPTURED") {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "Payment is already recorded. Check your booking.",
+            paymentCaptured: true,
+            requestId,
+          },
+          {
+            status: 409,
+            headers: { "Cache-Control": "no-store" },
+          }
+        );
+      }
+
       if (
         existingPayment.provider_order_id &&
-        existingPayment.status === 'CREATED'
+        existingPayment.status === "CREATED"
       ) {
-        const storedAmount = Number(existingPayment.amount);
-        const storedPaise = Math.round(storedAmount * 100);
+        const storedPaise = Math.round(Number(existingPayment.amount) * 100);
 
         if (
           !Number.isSafeInteger(storedPaise) ||
           storedPaise !== amountInPaise
         ) {
-          console.error('Existing order amount differs from current game fee.');
+          logFailure("PAYMENT_LOOKUP", requestId, undefined, {
+            gamePlayerId: playerRow.id,
+          });
           return jsonError(
-            'Your existing payment needs to be checked by support.',
-            409
+            "PAYMENT_LOOKUP",
+            "Your existing payment needs support review.",
+            409,
+            requestId
           );
         }
 
-        return NextResponse.json({
-          keyId,
-          order: {
-            id: existingPayment.provider_order_id,
-            amount: storedPaise,
-            currency: 'INR',
+        return NextResponse.json(
+          {
+            keyId,
+            order: {
+              id: existingPayment.provider_order_id,
+              amount: storedPaise,
+              currency: "INR",
+            },
+            gamePlayerId: playerRow.id,
+            requestId,
           },
-          gamePlayerId: playerRow.id,
-        });
+          { headers: { "Cache-Control": "no-store" } }
+        );
       }
 
-      // Do not silently create another order for an unknown, failed,
-      // authorized, or otherwise unreconciled payment state.
       return jsonError(
-        'Your previous payment attempt needs verification before retrying.',
-        409
+        "PAYMENT_LOOKUP",
+        "Your previous payment needs verification before retrying.",
+        409,
+        requestId
       );
     }
 
-    // 8. Create a Razorpay order on the server.
+    // 7. Create the Razorpay order.
     let order;
 
     try {
@@ -196,71 +354,93 @@ export async function POST(req: Request) {
         amount: amountInPaise,
         receipt: playerRow.id,
         notes: {
-          game_id: String(game.id),
-          game_player_id: String(playerRow.id),
+          game_id: game.id,
+          game_player_id: playerRow.id,
           user_id: user.id,
         },
       });
     } catch (error) {
-      console.error(
-        'Razorpay order creation failed:',
-        error instanceof Error ? error.message : 'Unknown error'
+      logFailure("ORDER_CREATION", requestId, error, {
+        gameId,
+        gamePlayerId: playerRow.id,
+      });
+
+      return jsonError(
+        "ORDER_CREATION",
+        "Unable to start payment. Please contact support if this continues.",
+        502,
+        requestId
       );
-      return jsonError('Unable to start payment. Please try again later.', 502);
     }
 
     if (
       !order?.id ||
       order.amount !== amountInPaise ||
-      order.currency !== 'INR'
+      order.currency !== "INR" ||
+      order.receipt !== playerRow.id
     ) {
-      console.error('Razorpay returned an unexpected order response.');
-      return jsonError('Unable to prepare payment securely.', 502);
+      logFailure("ORDER_VALIDATION", requestId, undefined, {
+        gameId,
+        gamePlayerId: playerRow.id,
+      });
+
+      return jsonError(
+        "ORDER_VALIDATION",
+        "The payment provider returned an unexpected order.",
+        502,
+        requestId
+      );
     }
 
-    // 9. Persist the order before returning it to the browser.
+    // 8. Persist the order before making it available to the browser.
     const { error: insertError } = await supabase
-      .from('game_payments')
+      .from("game_payments")
       .insert({
         game_player_id: playerRow.id,
         user_id: user.id,
-        provider: 'razorpay',
+        provider: "razorpay",
         provider_order_id: order.id,
         amount,
-        status: 'CREATED',
+        status: "CREATED",
       });
 
     if (insertError) {
-      // An order may exist at Razorpay even if this database write fails.
-      // Do not return a usable checkout order without its local record.
-      console.error(
-        'Unable to persist Razorpay order:',
-        insertError.message,
-        'Order ID:',
-        order.id
-      );
+      // Do not create another order automatically. Reconciliation is required.
+      logFailure("PAYMENT_PERSISTENCE", requestId, insertError, {
+        gameId,
+        gamePlayerId: playerRow.id,
+        orderId: order.id,
+      });
+
       return jsonError(
-        'Payment setup needs reconciliation. Do not retry repeatedly.',
-        500
+        "PAYMENT_PERSISTENCE",
+        "Payment setup needs support review. Do not retry repeatedly.",
+        500,
+        requestId
       );
     }
 
-    // 10. This response means an order was created, NOT that payment succeeded.
-    return NextResponse.json({
-      keyId,
-      order: {
-        id: order.id,
-        amount: order.amount,
-        currency: order.currency,
+    return NextResponse.json(
+      {
+        keyId,
+        order: {
+          id: order.id,
+          amount: order.amount,
+          currency: order.currency,
+        },
+        gamePlayerId: playerRow.id,
+        requestId,
       },
-      gamePlayerId: playerRow.id,
-    });
-  } catch (error) {
-    console.error(
-      'Unexpected payment endpoint error:',
-      error instanceof Error ? error.message : 'Unknown error'
+      { headers: { "Cache-Control": "no-store" } }
     );
+  } catch (error) {
+    logFailure("UNEXPECTED", requestId, error);
 
-    return jsonError('An unexpected payment error occurred.', 500);
+    return jsonError(
+      "UNEXPECTED",
+      "An unexpected error occurred while preparing payment.",
+      500,
+      requestId
+    );
   }
 }
