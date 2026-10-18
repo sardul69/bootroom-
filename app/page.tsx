@@ -2,9 +2,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import HomeLoginGate from '@/components/HomeLoginGate';
 
 export default async function Home() {
   const supabase = await createClient();
+const {
+  data: { user },
+} = await supabase.auth.getUser();
 
   const { data: games, error } = await supabase
     .from('games')
@@ -31,6 +35,7 @@ export default async function Home() {
 
   return (
     <>
+     {!user && <HomeLoginGate />}
       <header className="header">
         <div className="container nav">
           <Link href="/">
