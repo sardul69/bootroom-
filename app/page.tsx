@@ -1,6 +1,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import MarketplaceSection from '@/components/MarketplaceSection';
 import { createClient } from '@/lib/supabase/server';
 import HomeLoginGate from '@/components/HomeLoginGate';
 
@@ -326,6 +327,7 @@ const {
             </div>
           </div>
         </section>
+               <MarketplaceSection />
       </main>
 
       <footer className="footer">
