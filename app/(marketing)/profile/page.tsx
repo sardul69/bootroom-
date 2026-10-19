@@ -84,7 +84,7 @@ export default async function ProfilePage() {
               TURFZY MEMBER
             </p>
           </div>
-          <Link className="btn green" href="/profile/edit">
+          <Link className="btn green" href="/profile/edit/">
             EDIT PROFILE
           </Link>
         </section>
