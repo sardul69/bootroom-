@@ -205,7 +205,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { error: finalizeError } = await admin.rpc(
+    const { data: finalizeResult, error: finalizeError } = await admin.rpc(
       "finalize_game_slot_batch",
       {
         p_batch_id: batchId,
@@ -223,6 +223,27 @@ export async function POST(req: Request) {
       return respond(
         "Payment was verified, but booking confirmation is pending. Do not pay again; support reconciliation is required.",
         500,
+        true
+      );
+    }
+
+    if (
+      !finalizeResult ||
+      typeof finalizeResult !== "object" ||
+      Array.isArray(finalizeResult) ||
+      (finalizeResult as Record<string, unknown>).ok !== true
+    ) {
+      const reconciliationRequired =
+        !!finalizeResult &&
+        typeof finalizeResult === "object" &&
+        !Array.isArray(finalizeResult) &&
+        (finalizeResult as Record<string, unknown>).reconciliationRequired === true;
+
+      return respond(
+        reconciliationRequired
+          ? "Payment was captured, but the booking needs support reconciliation. Do not pay again."
+          : "Payment was checked, but booking confirmation could not be verified. Do not pay again; contact support.",
+        409,
         true
       );
     }

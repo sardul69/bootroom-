@@ -3,14 +3,27 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchRazorpayPayment } from "@/lib/payments/razorpay";
+import {
+  fetchRazorpayOrder,
+  fetchRazorpayPayment,
+} from "@/lib/payments/razorpay";
+import GoldenTicket from "@/components/GoldenTicket";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 type SearchParams = {
   gamePlayerId?: string;
+  batchId?: string;
   gameId?: string;
+};
+
+type TicketData = {
+  serial: number;
+  createdAt: string;
+  quantity: number;
+  playerFee: number;
 };
 
 export default async function PaymentSuccessPage({
@@ -18,107 +31,235 @@ export default async function PaymentSuccessPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const { gamePlayerId, gameId } = await searchParams;
+  const { gamePlayerId, batchId, gameId } = await searchParams;
+
+  const hasBatchId = Boolean(batchId);
+  const hasPlayerId = Boolean(gamePlayerId);
+
+  if (
+    !gameId ||
+    hasBatchId === hasPlayerId ||
+    (hasBatchId && !isUuid(batchId)) ||
+    (hasPlayerId && !isUuid(gamePlayerId)) ||
+    !isUuid(gameId)
+  ) {
+    redirect("/matches");
+  }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
-  if (!gamePlayerId || !gameId) redirect("/matches");
+  if (!user) {
+    const next = `/Payment/Success?${new URLSearchParams({
+      gameId,
+      ...(batchId ? { batchId } : {}),
+      ...(gamePlayerId ? { gamePlayerId } : {}),
+    }).toString()}`;
+
+    redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
 
   const admin = createAdminClient();
 
-  const [
-    { data: player, error: playerError },
-    { data: payment, error: paymentError },
-  ] = await Promise.all([
-    admin
-      .from("game_players")
-      .select("id, status, game_id")
-      .eq("id", gamePlayerId)
-      .eq("user_id", user.id)
-      .maybeSingle(),
+  let confirmed = false;
+  let paymentAmount = 0;
+  let paymentReference: string | null = null;
+  let bookingReference = "";
+  let playerCount = 1;
+  let ticket: TicketData | null = null;
 
-    admin
-      .from("game_payments")
-      .select(
-        "status, amount, provider, provider_order_id, provider_payment_id"
-      )
-      .eq("game_player_id", gamePlayerId)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-  ]);
+  if (batchId) {
+    const [
+      { data: batch, error: batchError },
+      { data: slots, error: slotsError },
+    ] = await Promise.all([
+      admin
+        .from("game_payment_batches")
+        .select(
+          "id, game_id, payer_user_id, provider, provider_order_id, provider_payment_id, amount, status, currency"
+        )
+        .eq("id", batchId)
+        .eq("payer_user_id", user.id)
+        .maybeSingle(),
 
-  if (
-    playerError ||
-    paymentError ||
-    !player ||
-    !payment ||
-    player.game_id !== gameId
-  ) {
-    redirect(`/matches/${encodeURIComponent(gameId)}`);
-  }
+      admin
+        .from("game_slot_bookings")
+        .select(
+          "id, booking_serial, created_at, status, slot_number"
+        )
+        .eq("payment_batch_id", batchId)
+        .eq("payer_user_id", user.id)
+        .order("slot_number", { ascending: true }),
+    ]);
 
-  // Never trust the database status alone to prove that money
-  // was captured by Razorpay.
-  let razorpayCaptured = false;
+    if (batchError || slotsError || !batch || !slots?.length) {
+      redirect(`/matches/${encodeURIComponent(gameId)}`);
+    }
 
-  if (
-    payment.provider === "razorpay" &&
-    payment.status === "CAPTURED" &&
-    payment.provider_order_id &&
-    payment.provider_payment_id
-  ) {
-    try {
-      const providerPayment = await fetchRazorpayPayment(
-        payment.provider_payment_id
-      );
+    if (batch.game_id !== gameId) {
+      redirect("/matches");
+    }
 
-      const expectedPaise = Math.round(Number(payment.amount) * 100);
+    paymentAmount = Number(batch.amount);
+    paymentReference = batch.provider_payment_id;
+    bookingReference = batch.id;
+    playerCount = slots.length;
 
-      razorpayCaptured =
-        Number.isSafeInteger(expectedPaise) &&
-        expectedPaise > 0 &&
-        providerPayment.id === payment.provider_payment_id &&
-        providerPayment.order_id === payment.provider_order_id &&
-        providerPayment.amount === expectedPaise &&
-        providerPayment.currency === "INR" &&
-        providerPayment.status === "captured" &&
-        providerPayment.captured === true;
-    } catch (error) {
-      // A temporary API error is not proof of a failed payment.
-      // Keep the page in the pending state and never claim success.
-      console.error(
-        "Live Razorpay confirmation check failed:",
-        error instanceof Error ? error.message : "Unknown error"
-      );
+    if (
+      batch.provider === "razorpay" &&
+      batch.currency === "INR" &&
+      batch.status === "CAPTURED" &&
+      batch.provider_order_id &&
+      batch.provider_payment_id &&
+      slots.every((slot) => slot.status === "CONFIRMED")
+    ) {
+      try {
+        const [order, payment] = await Promise.all([
+          fetchRazorpayOrder(batch.provider_order_id),
+          fetchRazorpayPayment(batch.provider_payment_id),
+        ]);
+
+        const expectedPaise = Math.round(paymentAmount * 100);
+
+        confirmed =
+          Number.isSafeInteger(expectedPaise) &&
+          expectedPaise > 0 &&
+          order.id === batch.provider_order_id &&
+          order.receipt === batch.id &&
+          order.amount === expectedPaise &&
+          order.currency === "INR" &&
+          payment.id === batch.provider_payment_id &&
+          payment.order_id === batch.provider_order_id &&
+          payment.amount === expectedPaise &&
+          payment.currency === "INR" &&
+          payment.status === "captured" &&
+          payment.captured === true;
+
+        // One ticket represents the whole verified batch.
+        // Use the first confirmed slot's database serial.
+        if (confirmed) {
+          const firstSlot = slots[0];
+
+          if (
+            firstSlot &&
+            Number.isSafeInteger(Number(firstSlot.booking_serial)) &&
+            Number(firstSlot.booking_serial) > 0
+          ) {
+            ticket = {
+              serial: Number(firstSlot.booking_serial),
+              createdAt: firstSlot.created_at,
+              quantity: slots.length,
+              playerFee: paymentAmount / slots.length,
+            };
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Live Razorpay batch confirmation failed:",
+          error instanceof Error ? error.message : "Unknown error"
+        );
+      }
+    }
+  } else if (gamePlayerId) {
+    const [
+      { data: player, error: playerError },
+      { data: paymentRecord, error: paymentError },
+    ] = await Promise.all([
+      admin
+        .from("game_players")
+        .select("id, status, game_id, booking_serial, created_at")
+        .eq("id", gamePlayerId)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+
+      admin
+        .from("game_payments")
+        .select(
+          "status, amount, provider, provider_order_id, provider_payment_id"
+        )
+        .eq("game_player_id", gamePlayerId)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
+
+    if (
+      playerError ||
+      paymentError ||
+      !player ||
+      !paymentRecord ||
+      player.game_id !== gameId
+    ) {
+      redirect(`/matches/${encodeURIComponent(gameId)}`);
+    }
+
+    paymentAmount = Number(paymentRecord.amount);
+    paymentReference = paymentRecord.provider_payment_id;
+    bookingReference = player.id;
+
+    if (
+      paymentRecord.provider === "razorpay" &&
+      paymentRecord.status === "CAPTURED" &&
+      paymentRecord.provider_order_id &&
+      paymentRecord.provider_payment_id
+    ) {
+      try {
+        const [order, payment] = await Promise.all([
+          fetchRazorpayOrder(paymentRecord.provider_order_id),
+          fetchRazorpayPayment(paymentRecord.provider_payment_id),
+        ]);
+
+        const expectedPaise = Math.round(paymentAmount * 100);
+
+        confirmed =
+          Number.isSafeInteger(expectedPaise) &&
+          expectedPaise > 0 &&
+          order.id === paymentRecord.provider_order_id &&
+          order.receipt === player.id &&
+          order.amount === expectedPaise &&
+          order.currency === "INR" &&
+          payment.id === paymentRecord.provider_payment_id &&
+          payment.order_id === paymentRecord.provider_order_id &&
+          payment.amount === expectedPaise &&
+          payment.currency === "INR" &&
+          payment.status === "captured" &&
+          payment.captured === true &&
+          player.status === "CONFIRMED";
+
+        if (
+          confirmed &&
+          Number.isSafeInteger(Number(player.booking_serial)) &&
+          Number(player.booking_serial) > 0
+        ) {
+          ticket = {
+            serial: Number(player.booking_serial),
+            createdAt: player.created_at,
+            quantity: 1,
+            playerFee: paymentAmount,
+          };
+        }
+      } catch (error) {
+        console.error(
+          "Live Razorpay confirmation failed:",
+          error instanceof Error ? error.message : "Unknown error"
+        );
+      }
     }
   }
 
-  const confirmed =
-    razorpayCaptured &&
-    player.status === "CONFIRMED";
+  const validAmount =
+    Number.isFinite(paymentAmount) && paymentAmount > 0;
 
   const displayedStatus = confirmed
     ? "CONFIRMED"
     : "PENDING VERIFICATION";
 
-  const paymentReference = confirmed
-    ? payment.provider_payment_id
-    : payment.provider_order_id;
-
   return (
     <main className="page">
-      <div
-        className="container"
-        style={{ maxWidth: 720, margin: "0 auto" }}
-      >
+      <div className="container" style={{ maxWidth: 900, margin: "0 auto" }}>
         <section className="panel" style={{ padding: 28 }}>
-          <div className="label">
-            TURFZY · PAYMENT CONFIRMATION
-          </div>
+          <div className="label">TURFZY · PAYMENT CONFIRMATION</div>
 
           <h1 className="display">
             {confirmed
@@ -128,22 +269,33 @@ export default async function PaymentSuccessPage({
 
           <p className="muted">
             {confirmed
-              ? "Razorpay confirms your payment was captured, and your place in this game is confirmed."
-              : "We could not fully confirm your payment yet. Please do not pay again. Your booking may need verification."}
+              ? "Razorpay confirms your payment was captured, and your booking is confirmed."
+              : "We could not fully confirm your payment and booking yet. Do not pay again while the status is being checked."}
           </p>
 
           <div style={{ margin: "24px 0" }}>
             <p className="label">PAYMENT STATUS</p>
             <h2>{displayedStatus}</h2>
 
-            <p className="label">PLAYER FEE</p>
+            <p className="label">
+              {batchId ? "TOTAL PLAYER FEES" : "PLAYER FEE"}
+            </p>
             <h2>
-              ₹{Number(payment.amount).toFixed(2)}
+              {validAmount
+                ? `₹${paymentAmount.toFixed(2)}`
+                : "Unavailable"}
             </h2>
+
+            {batchId && (
+              <>
+                <p className="label">PLAYER SLOTS</p>
+                <h2>{playerCount}</h2>
+              </>
+            )}
 
             <p className="label">BOOKING REFERENCE</p>
             <p style={{ overflowWrap: "anywhere" }}>
-              {player.id}
+              {bookingReference}
             </p>
 
             <p className="label">PAYMENT REFERENCE</p>
@@ -152,6 +304,32 @@ export default async function PaymentSuccessPage({
             </p>
           </div>
 
+          {confirmed && ticket && (
+            <section style={{ marginTop: 32 }}>
+              <div className="label">YOUR OFFICIAL ADMISSION TICKET</div>
+
+              <GoldenTicket
+                bookingId={`TZ-${new Date(ticket.createdAt).getFullYear()}-${String(
+                  ticket.serial
+                ).padStart(6, "0")}`}
+                bookingDate={ticket.createdAt}
+                matchTitle="TURFZY MATCH DAY"
+                venue="SEE MATCH DETAILS"
+                playerFee={ticket.playerFee}
+                quantity={ticket.quantity}
+                status="CONFIRMED"
+              />
+            </section>
+          )}
+
+          {confirmed && !ticket && (
+            <p className="muted" style={{ marginTop: 16 }}>
+              Your payment is verified and your booking is confirmed.
+              The ticket serial is not available yet. Keep your booking
+              reference; do not pay again.
+            </p>
+          )}
+
           <Link
             className="btn green"
             href={`/matches/${encodeURIComponent(gameId)}`}
@@ -159,22 +337,36 @@ export default async function PaymentSuccessPage({
             VIEW GAME DETAILS
           </Link>
 
+          <Link
+            className="btn"
+            href="/profile"
+            style={{ marginTop: 12 }}
+          >
+            VIEW MY PROFILE
+          </Link>
+
           {!confirmed && (
             <p className="muted" style={{ marginTop: 16 }}>
               If money has left your account, do not retry the payment.
-              Contact Turfzy support with your booking reference.
+              Keep your payment reference and contact TURFZY support.
             </p>
           )}
 
-          <p
-            className="muted"
-            style={{ marginTop: 20, fontSize: 13 }}
-          >
-            Keep this reference for your records. This confirmation
-            page is not a tax invoice.
+          <p className="muted" style={{ marginTop: 20, fontSize: 13 }}>
+            Keep this reference for your records. This confirmation page
+            is not a tax invoice.
           </p>
         </section>
       </div>
     </main>
+  );
+}
+
+function isUuid(value: string | undefined): value is string {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value
+    )
   );
 }

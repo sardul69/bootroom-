@@ -7,31 +7,29 @@ import { createRazorpayOrder } from "@/lib/payments/razorpay";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type FailureStage =
-  | "AUTH"
-  | "REQUEST"
-  | "CONFIG"
-  | "GAME_LOOKUP"
-  | "GAME_VALIDATION"
-  | "JOIN_GAME"
-  | "PAYMENT_LOOKUP"
-  | "ORDER_CREATION"
-  | "ORDER_VALIDATION"
-  | "PAYMENT_PERSISTENCE"
-  | "UNEXPECTED";
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function jsonError(
-  stage: FailureStage,
+type RecordValue = Record<string, unknown>;
+
+function isRecord(value: unknown): value is RecordValue {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function respond(
   message: string,
   status: number,
-  requestId: string
+  code: string,
+  requestId: string,
+  extra: Record<string, unknown> = {}
 ) {
   return NextResponse.json(
     {
       ok: false,
       error: message,
-      diagnosticCode: stage,
+      code,
       requestId,
+      ...extra,
     },
     {
       status,
@@ -41,15 +39,14 @@ function jsonError(
 }
 
 function logFailure(
-  stage: FailureStage,
+  stage: string,
   requestId: string,
   error?: unknown,
-  extra: Record<string, string | number | boolean | null> = {}
+  details: Record<string, string | number | boolean | null> = {}
 ) {
-  // Never log secrets, request bodies, signatures, or payment credentials.
   console.error(
     JSON.stringify({
-      event: "turfzy_payment_start_failure",
+      event: "turfzy_checkout_start",
       stage,
       requestId,
       error:
@@ -58,30 +55,44 @@ function logFailure(
           : error == null
             ? undefined
             : String(error),
-      ...extra,
+      ...details,
     })
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function getPaymentKeyId(): string | null {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const secret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  const mode = process.env.RAZORPAY_EXPECTED_MODE?.trim();
+
+  if (
+    !keyId ||
+    !secret ||
+    (mode !== "test" && mode !== "live") ||
+    !keyId.startsWith(`rzp_${mode}_`)
+  ) {
+    return null;
+  }
+
+  return keyId;
 }
 
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
 
   try {
-    // 1. Authenticate the player.
+    // 1. Authenticate the payer.
     let authClient;
 
     try {
       authClient = await createClient();
     } catch (error) {
-      logFailure("AUTH", requestId, error);
-      return jsonError(
-        "AUTH",
-        "Unable to check your sign-in session.",
+      logFailure("AUTH_CLIENT", requestId, error);
+
+      return respond(
+        "Unable to check your sign-in session. Please try again.",
         503,
+        "AUTH_UNAVAILABLE",
         requestId
       );
     }
@@ -92,25 +103,48 @@ export async function POST(req: Request) {
     } = await authClient.auth.getUser();
 
     if (authError || !user) {
-      if (authError) logFailure("AUTH", requestId, authError);
-      return jsonError(
-        "AUTH",
-        "Please sign in to join this game.",
+      return respond(
+        "Please sign in before joining this game.",
         401,
+        "AUTH_REQUIRED",
         requestId
       );
     }
 
     // 2. Validate the request.
+    if (
+      !(req.headers.get("content-type") ?? "")
+        .toLowerCase()
+        .includes("application/json")
+    ) {
+      return respond(
+        "The request must use JSON.",
+        415,
+        "INVALID_CONTENT_TYPE",
+        requestId
+      );
+    }
+
+    const rawBody = await req.text();
+
+    if (!rawBody || rawBody.length > 10_000) {
+      return respond(
+        "The request body is missing or too large.",
+        400,
+        "INVALID_BODY",
+        requestId
+      );
+    }
+
     let body: unknown;
 
     try {
-      body = await req.json();
+      body = JSON.parse(rawBody);
     } catch {
-      return jsonError(
-        "REQUEST",
-        "Invalid JSON request.",
+      return respond(
+        "The request contains invalid JSON.",
         400,
+        "INVALID_JSON",
         requestId
       );
     }
@@ -118,328 +152,304 @@ export async function POST(req: Request) {
     if (
       !isRecord(body) ||
       typeof body.gameId !== "string" ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        body.gameId
-      )
+      !UUID.test(body.gameId)
     ) {
-      return jsonError(
-        "REQUEST",
+      return respond(
         "A valid game ID is required.",
         400,
+        "INVALID_GAME_ID",
+        requestId
+      );
+    }
+
+    const quantity = body.quantity === undefined ? 1 : body.quantity;
+
+    if (
+      typeof quantity !== "number" ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > 10
+    ) {
+      return respond(
+        "Select between 1 and 10 player slots.",
+        400,
+        "INVALID_QUANTITY",
         requestId
       );
     }
 
     const gameId = body.gameId;
 
-    // 3. Check the expected Razorpay environment.
-    const keyId = process.env.RAZORPAY_KEY_ID?.trim();
-    const expectedMode = process.env.RAZORPAY_EXPECTED_MODE?.trim();
+    // 3. Validate the Razorpay environment.
+    const keyId = getPaymentKeyId();
 
-    if (
-      !keyId ||
-      !process.env.RAZORPAY_KEY_SECRET?.trim() ||
-      (expectedMode !== "live" && expectedMode !== "test") ||
-      !keyId.startsWith(`rzp_${expectedMode}_`)
-    ) {
-      logFailure("CONFIG", requestId, undefined, {
-        keyIdPresent: Boolean(keyId),
-        keySecretPresent: Boolean(process.env.RAZORPAY_KEY_SECRET?.trim()),
-        expectedModeValid: expectedMode === "live" || expectedMode === "test",
-        keyModeMatches:
-          Boolean(keyId) &&
-          (expectedMode === "live" || expectedMode === "test") &&
-          keyId!.startsWith(`rzp_${expectedMode}_`),
-      });
+    if (!keyId) {
+      logFailure("PAYMENT_CONFIGURATION", requestId);
 
-      return jsonError(
-        "CONFIG",
-        "Payments are temporarily unavailable because the payment configuration is invalid.",
+      return respond(
+        "Payments are temporarily unavailable. Please try again later.",
         503,
+        "PAYMENT_CONFIGURATION",
         requestId
       );
     }
 
-    let supabase;
+    // 4. Read the authoritative game price.
+    let admin;
 
     try {
-      supabase = createAdminClient();
+      admin = createAdminClient();
     } catch (error) {
-      logFailure("GAME_LOOKUP", requestId, error);
-      return jsonError(
-        "GAME_LOOKUP",
-        "Unable to load this game.",
+      logFailure("ADMIN_CLIENT", requestId, error);
+
+      return respond(
+        "The booking service is temporarily unavailable.",
         503,
+        "BOOKING_SERVICE_UNAVAILABLE",
         requestId
       );
     }
 
-    // 4. Read the authoritative game fee.
-    const { data: game, error: gameError } = await supabase
+    const { data: game, error: gameError } = await admin
       .from("games")
-      .select("id, player_fee, status")
+      .select("id, player_fee, player_capacity, status, slot_start")
       .eq("id", gameId)
       .maybeSingle();
 
     if (gameError) {
-      logFailure("GAME_LOOKUP", requestId, gameError);
-      return jsonError(
-        "GAME_LOOKUP",
+      logFailure("GAME_LOOKUP", requestId, gameError, { gameId });
+
+      return respond(
         "Unable to load this game.",
         500,
+        "GAME_LOOKUP_FAILED",
         requestId
       );
     }
 
     if (!game) {
-      return jsonError("GAME_LOOKUP", "Game not found.", 404, requestId);
-    }
-
-    if (game.status !== "OPEN") {
-      return jsonError(
-        "GAME_VALIDATION",
-        "This game is no longer open.",
-        409,
+      return respond(
+        "This game could not be found.",
+        404,
+        "GAME_NOT_FOUND",
         requestId
       );
     }
-
-    const amount = Number(game.player_fee);
-    const amountInPaise = Math.round(amount * 100);
 
     if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      !Number.isSafeInteger(amountInPaise) ||
-      amountInPaise <= 0 ||
-      Math.abs(amount * 100 - amountInPaise) > 1e-7
+      game.status !== "OPEN" ||
+      !game.slot_start ||
+      !Number.isFinite(new Date(game.slot_start).getTime()) ||
+      new Date(game.slot_start).getTime() <= Date.now()
     ) {
-      logFailure("GAME_VALIDATION", requestId, undefined, { gameId });
-      return jsonError(
-        "GAME_VALIDATION",
-        "This game's player fee is invalid.",
-        500,
-        requestId
-      );
-    }
-
-    // 5. Create or retrieve the pending player entry.
-    const { data: playerResult, error: joinError } =
-      await authClient.rpc("join_game", {
-        p_game_id: game.id,
-        p_user_id: user.id,
-      });
-
-    if (joinError || !playerResult) {
-      logFailure("JOIN_GAME", requestId, joinError, { gameId });
-      return jsonError(
-        "JOIN_GAME",
-        "Unable to reserve your place in this game.",
+      return respond(
+        "This game is no longer available to join.",
         409,
+        "GAME_UNAVAILABLE",
         requestId
       );
     }
 
-    const playerRow = Array.isArray(playerResult)
-      ? playerResult[0]
-      : playerResult;
+    const fee = Number(game.player_fee);
+    const feeInPaise = Math.round(fee * 100);
+    const totalInPaise = feeInPaise * quantity;
 
-    if (!playerRow?.id || typeof playerRow.id !== "string") {
-      logFailure("JOIN_GAME", requestId, undefined, { gameId });
-      return jsonError(
-        "JOIN_GAME",
-        "Unable to prepare your game entry.",
+    if (
+      !Number.isFinite(fee) ||
+      fee <= 0 ||
+      !Number.isSafeInteger(feeInPaise) ||
+      feeInPaise <= 0 ||
+      Math.abs(fee * 100 - feeInPaise) > 1e-7 ||
+      !Number.isSafeInteger(totalInPaise) ||
+      totalInPaise <= 0
+    ) {
+      logFailure("INVALID_FEE", requestId, undefined, { gameId });
+
+      return respond(
+        "The player fee is invalid. Please contact support.",
         500,
+        "INVALID_PLAYER_FEE",
         requestId
       );
     }
 
-    // 6. Check the existing payment before creating any new order.
-    const { data: existingPayment, error: paymentLookupError } =
-      await supabase
-        .from("game_payments")
-        .select("id, user_id, provider, provider_order_id, amount, status")
-        .eq("game_player_id", playerRow.id)
-        .maybeSingle();
+    // 5. Reserve the requested slots atomically.
+    // The RPC must check capacity while locking the game row.
+    const { data: reservation, error: reservationError } = await admin.rpc(
+      "reserve_game_slot_batch",
+      {
+        p_game_id: gameId,
+        p_quantity: quantity,
+        p_payer_user_id: user.id,
+        p_participant_names: null,
+      }
+    );
 
-    if (paymentLookupError) {
-      logFailure("PAYMENT_LOOKUP", requestId, paymentLookupError, {
-        gamePlayerId: playerRow.id,
+    if (reservationError) {
+      logFailure("RESERVATION", requestId, reservationError, {
+        gameId,
+        quantity,
       });
-      return jsonError(
-        "PAYMENT_LOOKUP",
-        "Unable to check your existing payment.",
-        500,
-        requestId
-      );
-    }
 
-    if (existingPayment) {
+      const detail = reservationError.message.toLowerCase();
+
       if (
-        existingPayment.user_id !== user.id ||
-        existingPayment.provider !== "razorpay"
+        detail.includes("not enough available slots") ||
+        detail.includes("not available to join") ||
+        detail.includes("game is full") ||
+        detail.includes("game not found")
       ) {
-        return jsonError(
-          "PAYMENT_LOOKUP",
-          "Payment record does not match this player.",
+        return respond(
+          "There are not enough available slots for this booking.",
           409,
+          "SLOTS_UNAVAILABLE",
           requestId
         );
       }
 
-      if (existingPayment.status === "CAPTURED") {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: "Payment is already recorded. Check your booking.",
-            paymentCaptured: true,
-            requestId,
-          },
-          {
-            status: 409,
-            headers: { "Cache-Control": "no-store" },
-          }
-        );
-      }
-
-      if (
-        existingPayment.provider_order_id &&
-        existingPayment.status === "CREATED"
-      ) {
-        const storedPaise = Math.round(Number(existingPayment.amount) * 100);
-
-        if (
-          !Number.isSafeInteger(storedPaise) ||
-          storedPaise !== amountInPaise
-        ) {
-          logFailure("PAYMENT_LOOKUP", requestId, undefined, {
-            gamePlayerId: playerRow.id,
-          });
-          return jsonError(
-            "PAYMENT_LOOKUP",
-            "Your existing payment needs support review.",
-            409,
-            requestId
-          );
-        }
-
-        return NextResponse.json(
-          {
-            keyId,
-            order: {
-              id: existingPayment.provider_order_id,
-              amount: storedPaise,
-              currency: "INR",
-            },
-            gamePlayerId: playerRow.id,
-            requestId,
-          },
-          { headers: { "Cache-Control": "no-store" } }
-        );
-      }
-
-      return jsonError(
-        "PAYMENT_LOOKUP",
-        "Your previous payment needs verification before retrying.",
-        409,
+      // A missing migration/function is a server setup issue, not a reason
+      // to silently fall back to the legacy single-player payment flow.
+      return respond(
+        "Multi-player booking is not ready yet. Please contact support.",
+        503,
+        "BATCH_RESERVATION_UNAVAILABLE",
         requestId
       );
     }
 
-    // 7. Create the Razorpay order.
+    const batch = Array.isArray(reservation)
+      ? reservation[0]
+      : reservation;
+
+    if (
+      !isRecord(batch) ||
+      typeof batch.batchId !== "string" ||
+      !UUID.test(batch.batchId) ||
+      batch.gameId !== gameId ||
+      Number(batch.quantity) !== quantity ||
+      Math.round(Number(batch.amount) * 100) !== totalInPaise
+    ) {
+      logFailure("RESERVATION_VALIDATION", requestId, undefined, {
+        gameId,
+        quantity,
+      });
+
+      return respond(
+        "The reservation could not be validated. Contact support before retrying.",
+        500,
+        "RESERVATION_INVALID",
+        requestId
+      );
+    }
+
+    const batchId = batch.batchId;
+
+    // 6. Create one provider order for the full batch.
     let order;
 
     try {
       order = await createRazorpayOrder({
-        amount: amountInPaise,
-        receipt: playerRow.id,
+        amount: totalInPaise,
+        receipt: batchId,
         notes: {
-          game_id: game.id,
-          game_player_id: playerRow.id,
-          user_id: user.id,
+          booking_type: "multi_slot",
+          batch_id: batchId,
+          game_id: gameId,
+          payer_user_id: user.id,
+          quantity: String(quantity),
         },
       });
     } catch (error) {
       logFailure("ORDER_CREATION", requestId, error, {
         gameId,
-        gamePlayerId: playerRow.id,
+        batchId,
+        quantity,
       });
 
-      return jsonError(
-        "ORDER_CREATION",
-        "Unable to start payment. Please contact support if this continues.",
+      // The batch may still have a live hold. Do not automatically create
+      // another batch/order; resolve this reservation before retrying.
+      return respond(
+        "Payment setup could not be completed. Do not retry repeatedly; contact support if this continues.",
         502,
-        requestId
+        "ORDER_CREATION_FAILED",
+        requestId,
+        { batchId }
       );
     }
 
     if (
       !order?.id ||
-      order.amount !== amountInPaise ||
+      order.amount !== totalInPaise ||
       order.currency !== "INR" ||
-      order.receipt !== playerRow.id
+      order.receipt !== batchId
     ) {
       logFailure("ORDER_VALIDATION", requestId, undefined, {
         gameId,
-        gamePlayerId: playerRow.id,
+        batchId,
       });
 
-      return jsonError(
-        "ORDER_VALIDATION",
-        "The payment provider returned an unexpected order.",
+      return respond(
+        "The payment provider returned an unexpected order. Contact support before retrying.",
         502,
-        requestId
+        "ORDER_VALIDATION_FAILED",
+        requestId,
+        { batchId }
       );
     }
 
-    // 8. Persist the order before making it available to the browser.
-    const { error: insertError } = await supabase
-      .from("game_payments")
-      .insert({
-        game_player_id: playerRow.id,
-        user_id: user.id,
-        provider: "razorpay",
-        provider_order_id: order.id,
-        amount,
-        status: "CREATED",
-      });
+    // 7. Persist the order-to-batch association before returning it.
+    const { error: attachError } = await admin.rpc("attach_game_slot_order", {
+      p_batch_id: batchId,
+      p_order_id: order.id,
+    });
 
-    if (insertError) {
-      // Do not create another order automatically. Reconciliation is required.
-      logFailure("PAYMENT_PERSISTENCE", requestId, insertError, {
+    if (attachError) {
+      logFailure("ORDER_ATTACHMENT", requestId, attachError, {
         gameId,
-        gamePlayerId: playerRow.id,
+        batchId,
         orderId: order.id,
       });
 
-      return jsonError(
-        "PAYMENT_PERSISTENCE",
-        "Payment setup needs support review. Do not retry repeatedly.",
-        500,
-        requestId
+      // Do not expose an order whose association was not persisted.
+      // The order and batch need reconciliation rather than a second charge.
+      return respond(
+        "Payment setup needs support review. Do not attempt another payment.",
+        503,
+        "ORDER_ATTACHMENT_FAILED",
+        requestId,
+        { batchId }
       );
     }
 
+    // 8. Return the verified server-created order.
     return NextResponse.json(
       {
+        ok: true,
         keyId,
+        gameId,
+        batchId,
+        quantity,
+        playerFee: fee,
+        totalAmount: totalInPaise / 100,
         order: {
           id: order.id,
           amount: order.amount,
           currency: order.currency,
         },
-        gamePlayerId: playerRow.id,
         requestId,
       },
-      { headers: { "Cache-Control": "no-store" } }
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store" },
+      }
     );
   } catch (error) {
     logFailure("UNEXPECTED", requestId, error);
 
-    return jsonError(
-      "UNEXPECTED",
-      "An unexpected error occurred while preparing payment.",
+    return respond(
+      "An unexpected error occurred. Check your booking status before retrying.",
       500,
+      "UNEXPECTED_ERROR",
       requestId
     );
   }

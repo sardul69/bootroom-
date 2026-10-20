@@ -1,118 +1,225 @@
-import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+
+import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 import GamePayButton from "@/components/GamePayButton";
-export default async function JoinGamePage({
-  params,
-}: {
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type JoinPageProps = {
   params: Promise<{ id: string }>;
-}) {
+};
+
+export default async function JoinGamePage({ params }: JoinPageProps) {
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: game } = await supabase
-    .from('games')
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent(`/matches/${id}/join`)}`);
+  }
+
+  const { data: game, error: gameError } = await supabase
+    .from("games")
     .select(`
       id,
-      player_fee,
-      player_capacity,
-      status,
       slot_start,
       slot_end,
+      player_capacity,
+      player_fee,
+      status,
       turfs (
         name,
+        format,
         venues (
           name,
-          locality
+          locality,
+          address
         )
       )
     `)
-    .eq('id', id)
-    .single();
+    .eq("id", id)
+    .maybeSingle();
 
-  if (!game) {
-    notFound();
+  if (gameError) {
+    console.error("Join page game lookup failed:", gameError.message);
+    throw new Error("Unable to load this game. Please try again.");
   }
+
+  if (!game) notFound();
 
   const start = new Date(game.slot_start);
   const end = new Date(game.slot_end);
+  const capacity = Number(game.player_capacity);
+  const playerFee = Number(game.player_fee);
 
-  const date = start.toLocaleDateString('en-IN', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
+  if (
+    !Number.isFinite(start.getTime()) ||
+    !Number.isFinite(end.getTime()) ||
+    end.getTime() <= start.getTime() ||
+    !Number.isSafeInteger(capacity) ||
+    capacity < 1 ||
+    !Number.isFinite(playerFee) ||
+    playerFee <= 0
+  ) {
+    throw new Error("This game's booking information is invalid.");
+  }
 
-  const startTime = start.toLocaleTimeString('en-IN', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  const { data: occupiedCount, error: countError } =
+    await supabase.rpc("get_combined_player_count", {
+      p_game_id: id,
+    });
 
-  const endTime = end.toLocaleTimeString('en-IN', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  if (
+    countError ||
+    occupiedCount === null ||
+    occupiedCount === undefined ||
+    !Number.isSafeInteger(Number(occupiedCount)) ||
+    Number(occupiedCount) < 0
+  ) {
+    console.error("Join page availability lookup failed:", {
+      gameId: id,
+      error: countError?.message,
+    });
+
+    throw new Error(
+      "Player availability is temporarily unavailable. Please try again."
+    );
+  }
+
+  const occupiedPlayers = Number(occupiedCount);
+  const spotsLeft = Math.max(capacity - occupiedPlayers, 0);
+
+  const isFull =
+    game.status === "FULL" || occupiedPlayers >= capacity;
+
+  const canJoin =
+    game.status === "OPEN" &&
+    !isFull &&
+    start.getTime() > Date.now();
 
   const turf = game.turfs as any;
   const venue = turf?.venues as any;
 
+  const date = start.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  const startTime = start.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const endTime = end.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
   return (
     <main className="page">
       <div className="container">
+        <Link className="btn" href={`/matches/${game.id}`}>
+          BACK TO GAME
+        </Link>
 
-        <div className="label">
-          BOOTROOM · JOIN GAME
+        <div className="label" style={{ marginTop: 24 }}>
+          TURFZY · JOIN GAME
         </div>
 
         <h1 className="display">
-          JOIN THE<br />
-          <span className="gold">GAME.</span>
+          {venue?.name || "Football Venue"}
         </h1>
 
-        <div className="panel">
+        <p className="muted">
+          {turf?.name || "Football Turf"}
+          {venue?.locality ? ` · ${venue.locality}` : ""}
+        </p>
 
-          <div className="label">
-            {venue?.name || 'Football Venue'}
-          </div>
+        <div className="detailGrid" style={{ marginTop: 24 }}>
+          <section className="panel">
+            <div className="label">YOUR GAME</div>
 
-          <h2>
-            {turf?.name || 'Football Turf'}
-          </h2>
+            <h2>{date}</h2>
 
-          <p className="muted">
-            {venue?.locality || ''}
-          </p>
+            <h2 className="gold">
+              {startTime} – {endTime}
+            </h2>
 
-          <p className="muted">
-            {date}
-            <br />
-            {startTime} – {endTime}
-          </p>
+            <p className="muted" style={{ marginTop: 12 }}>
+              {turf?.format || "Football"}
+            </p>
 
+            <div className="meta">
+              <span className="tag">
+                {Math.min(occupiedPlayers, capacity)}/{capacity} players
+              </span>
+
+              <span className="tag">
+                {isFull ? "FULL" : `${spotsLeft} spots left`}
+              </span>
+            </div>
+
+            {venue?.address && (
+              <p className="muted" style={{ marginTop: 16 }}>
+                {venue.address}
+              </p>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="label">PLAYER PAYMENT</div>
+
+            {canJoin ? (
+              <>
+                <h2>Choose your slots</h2>
+
+                <p className="muted" style={{ marginTop: 8 }}>
+                  Pay per player. The available number of slots is checked
+                  again securely when your booking is reserved.
+                </p>
+
+                <div style={{ marginTop: 20 }}>
+                  <GamePayButton
+                    gameId={game.id}
+                    amount={playerFee}
+                  />
+                </div>
+
+                <p className="muted" style={{ marginTop: 12 }}>
+                  Payment confirmation is required before your booking
+                  is confirmed. Do not retry payment if a previous
+                  payment may have been captured.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>
+                  {isFull ? "Game full" : "Joining unavailable"}
+                </h2>
+
+                <p className="muted" style={{ marginTop: 8 }}>
+                  {isFull
+                    ? "All player slots are currently occupied."
+                    : "This game is closed or has already started."}
+                </p>
+
+                <Link
+                  className="btn"
+                  href={`/matches/${game.id}`}
+                  style={{ marginTop: 16 }}
+                >
+                  RETURN TO GAME
+                </Link>
+              </>
+            )}
+          </section>
         </div>
-
-        <div
-          className="panel"
-          style={{ marginTop: 18 }}
-        >
-          <div className="label">
-            YOUR PAYMENT
-          </div>
-
-          <div className="price">
-            ₹{Number(game.player_fee).toFixed(0)}
-          </div>
-
-          <p className="muted">
-            This is your individual player fee.
-          </p>
-
-          <GamePayButton
-  gameId={game.id}
-  amount={Number(game.player_fee)}
-/>
-
-        </div>
-
       </div>
     </main>
   );
