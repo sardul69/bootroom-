@@ -29,7 +29,7 @@ function formatTicketId(id: string, date?: string | null) {
 }
 
 function dateLabel(value?: string | null) {
-  if (!value) return "MATCH ADMISSION";
+  if (!value) return "BOOKING PASS";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleDateString("en-IN", {
@@ -81,8 +81,8 @@ export default function GoldenTicket({
           </div>
 
           <div className="gt-admission">
-            <p>OFFICIAL MATCH BOOKING</p>
-            <span>ADMIT ONE · PLAY TO BELONG</span>
+            <p>OFFICIAL BOOKING PASS</p>
+            <span>YOUR PASS . PLAY TO BELONG</span>
           </div>
 
           <div className="gt-serial-panel">
@@ -128,7 +128,7 @@ export default function GoldenTicket({
               ))}
             </div>
             <div className="gt-footer-copy">
-              <span>OFFICIAL TURFZY ADMISSION</span>
+              <span>OFFICIAL BOOTROOM TICKET</span>
               <strong>FOOTBALL NEVER DIES.</strong>
             </div>
           </footer>

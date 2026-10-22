@@ -306,7 +306,7 @@ export default async function PaymentSuccessPage({
 
           {confirmed && ticket && (
             <section style={{ marginTop: 32 }}>
-              <div className="label">YOUR OFFICIAL ADMISSION TICKET</div>
+              <div className="label">YOUR OFFICIAL BOOKING TICKET</div>
 
               <GoldenTicket
                 bookingId={`TZ-${new Date(ticket.createdAt).getFullYear()}-${String(
