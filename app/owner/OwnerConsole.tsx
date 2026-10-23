@@ -1,5 +1,4 @@
 "use client";
-
 import {
   useEffect,
   useMemo,
@@ -7,7 +6,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-
+import OwnerOperations from "@/components/owner/OwnerOperations";
 type Turf = {
   id: string;
   name: string;
@@ -16,7 +15,6 @@ type Turf = {
     locality: string;
   }[] | null;
 };
-
 const confetti = Array.from(
   { length: 72 },
   (_, i) => ({
@@ -33,7 +31,6 @@ const confetti = Array.from(
     ][i % 5],
   })
 );
-
 export default function OwnerConsole({
   email,
 }: {
@@ -43,9 +40,7 @@ export default function OwnerConsole({
     () => createClient(),
     []
   );
-
   const router = useRouter();
-
   const [turfs, setTurfs] = useState<Turf[]>([]);
   const [turfId, setTurfId] = useState("");
   const [start, setStart] = useState("");
@@ -58,18 +53,14 @@ export default function OwnerConsole({
   const [locking, setLocking] = useState(false);
   const [message, setMessage] = useState("");
   const [celebrate, setCelebrate] = useState(true);
-
   useEffect(() => {
     let alive = true;
-
     async function load() {
       const { data, error } = await supabase
         .from("turfs")
         .select("id, name, venues(name, locality)")
         .order("name");
-
       if (!alive) return;
-
       if (error) {
         setMessage(
           "Could not load turfs. " + error.message
@@ -77,38 +68,30 @@ export default function OwnerConsole({
       } else {
         setTurfs((data ?? []) as Turf[]);
       }
-
       setLoadingTurfs(false);
     }
-
     void load();
-
     const timer = window.setTimeout(
       () => setCelebrate(false),
       4200
     );
-
     return () => {
       alive = false;
       window.clearTimeout(timer);
     };
   }, [supabase]);
-
   async function createGame() {
     setMessage("");
-
     const startDate = new Date(start);
     const endDate = new Date(end);
     const fee = Number(playerFee);
     const seats = Number(capacity);
-
     if (!turfId || !start || !end || !playerFee) {
       setMessage(
         "Complete every field before creating the game."
       );
       return;
     }
-
     if (
       !Number.isFinite(startDate.getTime()) ||
       !Number.isFinite(endDate.getTime()) ||
@@ -119,7 +102,6 @@ export default function OwnerConsole({
       );
       return;
     }
-
     if (
       !Number.isInteger(seats) ||
       seats < 2 ||
@@ -130,7 +112,6 @@ export default function OwnerConsole({
       );
       return;
     }
-
     if (
       !Number.isFinite(fee) ||
       fee < 1 ||
@@ -139,20 +120,16 @@ export default function OwnerConsole({
       setMessage("Enter a valid player fee.");
       return;
     }
-
     setLoading(true);
-
     try {
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
-
       if (authError || !user) {
         router.push("/login");
         return;
       }
-
       const { data, error } = await supabase.rpc(
         "create_game",
         {
@@ -164,12 +141,10 @@ export default function OwnerConsole({
           p_player_fee: fee,
         }
       );
-
       if (error) {
         setMessage(error.message);
         return;
       }
-
       const gameId =
         typeof data === "string"
           ? data
@@ -178,7 +153,6 @@ export default function OwnerConsole({
             : data && typeof data === "object"
               ? (data as { id?: string }).id
               : null;
-
       if (
         typeof gameId !== "string" ||
         !gameId
@@ -188,7 +162,6 @@ export default function OwnerConsole({
         );
         return;
       }
-
       router.push(
         `/matches/${encodeURIComponent(gameId)}`
       );
@@ -202,10 +175,8 @@ export default function OwnerConsole({
       setLoading(false);
     }
   }
-
   async function lockConsole() {
     setLocking(true);
-
     try {
       await fetch("/api/owner/access", {
         method: "DELETE",
@@ -217,7 +188,6 @@ export default function OwnerConsole({
       setLocking(false);
     }
   }
-
   return (
     <main className="royal-dashboard">
       {celebrate && (
@@ -238,7 +208,6 @@ export default function OwnerConsole({
           ))}
         </div>
       )}
-
       <header className="royal-topbar">
         <div className="royal-mini-brand">
           <span
@@ -252,7 +221,6 @@ export default function OwnerConsole({
             OWNER
           </span>
         </div>
-
         <button
           className="royal-lock-button"
           onClick={lockConsole}
@@ -261,24 +229,20 @@ export default function OwnerConsole({
           {locking ? "LOCKING…" : "LOCK CONSOLE"}
         </button>
       </header>
-
       <div className="royal-content">
         <div className="royal-eyebrow">
           PRIVATE COMMAND CENTRE
         </div>
-
         <h1 className="royal-title">
           Welcome back,
           <br />
           <span>Your Majesty.</span>
         </h1>
-
         <p className="royal-intro">
           Your pitch. Your people. Your decisions.
           Privileged database actions remain
           independently authorized.
         </p>
-
         <section className="royal-status-card">
           <div
             className="royal-status-icon"
@@ -286,37 +250,30 @@ export default function OwnerConsole({
           >
             ♛
           </div>
-
           <div>
             <div className="royal-kicker">
               AUTHENTICATED OWNER
             </div>
-
             <div className="royal-account">
               {email}
             </div>
-
             <div className="royal-status-line">
               <span />
               Owner access verified for this session
             </div>
           </div>
         </section>
-
         <section className="royal-section-heading">
           <div className="royal-kicker">
             OPERATIONS
           </div>
-
           <h2>Create a game</h2>
-
           <p>
             Publish a session at a listed turf.
             Players see their individual fee, not
             the venue rental total.
           </p>
         </section>
-
         <section className="royal-game-card">
           <div className="royal-card-heading">
             <span
@@ -325,7 +282,6 @@ export default function OwnerConsole({
             >
               ✦
             </span>
-
             <div>
               <div className="royal-kicker">
                 MATCH SETUP
@@ -333,11 +289,9 @@ export default function OwnerConsole({
               <h3>New football session</h3>
             </div>
           </div>
-
           <label htmlFor="royal-turf">
             SELECT TURF
           </label>
-
           <select
             id="royal-turf"
             value={turfId}
@@ -351,7 +305,6 @@ export default function OwnerConsole({
                 ? "Loading turfs…"
                 : "Choose a turf"}
             </option>
-
             {turfs.map((turf) => (
               <option
                 key={turf.id}
@@ -364,13 +317,11 @@ export default function OwnerConsole({
               </option>
             ))}
           </select>
-
           <div className="royal-field-grid">
             <div>
               <label htmlFor="royal-start">
                 START DATE &amp; TIME
               </label>
-
               <input
                 id="royal-start"
                 type="datetime-local"
@@ -381,12 +332,10 @@ export default function OwnerConsole({
                 disabled={loading}
               />
             </div>
-
             <div>
               <label htmlFor="royal-end">
                 END DATE &amp; TIME
               </label>
-
               <input
                 id="royal-end"
                 type="datetime-local"
@@ -398,13 +347,11 @@ export default function OwnerConsole({
               />
             </div>
           </div>
-
           <div className="royal-field-grid">
             <div>
               <label htmlFor="royal-capacity">
                 PLAYER CAPACITY
               </label>
-
               <input
                 id="royal-capacity"
                 type="number"
@@ -418,12 +365,10 @@ export default function OwnerConsole({
                 disabled={loading}
               />
             </div>
-
             <div>
               <label htmlFor="royal-fee">
                 FEE PER PLAYER (₹)
               </label>
-
               <input
                 id="royal-fee"
                 type="number"
@@ -439,13 +384,11 @@ export default function OwnerConsole({
               />
             </div>
           </div>
-
           <p className="royal-form-note">
             Only the per-player fee is shown to players.
             Confirm venue booking and payment
             arrangements separately.
           </p>
-
           {message && (
             <div
               className="royal-feedback"
@@ -454,7 +397,6 @@ export default function OwnerConsole({
               {message}
             </div>
           )}
-
           <button
             className="royal-create-button"
             type="button"
@@ -466,7 +408,7 @@ export default function OwnerConsole({
               : "CREATE GAME →"}
           </button>
         </section>
-
+        <OwnerOperations />
         <footer className="royal-footer">
           BOOTROOM · OWNER CONSOLE · ACCESS CHECKS
           ENFORCED SERVER-SIDE
