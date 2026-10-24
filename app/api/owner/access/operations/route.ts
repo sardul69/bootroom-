@@ -36,8 +36,13 @@ function sameOrigin(request: NextRequest) {
 }
 
 async function authorize(request: NextRequest) {
-  if (!sameOrigin(request)) {
-    return { error: json({ error: "Request rejected." }, 403) };
+  if (
+    request.method !== "GET" &&
+    !sameOrigin(request)
+  ) {
+    return {
+      error: json({ error: "Request rejected." }, 403),
+    }
   }
 
   const supabase = await createClient();
