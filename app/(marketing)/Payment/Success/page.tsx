@@ -1,4 +1,3 @@
-
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -65,6 +64,8 @@ export default async function PaymentSuccessPage({
 
   let confirmed = false;
   let paymentAmount = 0;
+  let totalDue = 0;
+  let paymentMode: "FULL" | "PARTIAL" | null = null;
   let paymentReference: string | null = null;
   let bookingReference = "";
   let playerCount = 1;
@@ -78,7 +79,7 @@ export default async function PaymentSuccessPage({
       admin
         .from("game_payment_batches")
         .select(
-          "id, game_id, payer_user_id, provider, provider_order_id, provider_payment_id, amount, status, currency"
+          "id, game_id, payer_user_id, provider, provider_order_id, provider_payment_id, amount, total_due, payment_mode, status, currency"
         )
         .eq("id", batchId)
         .eq("payer_user_id", user.id)
@@ -87,7 +88,7 @@ export default async function PaymentSuccessPage({
       admin
         .from("game_slot_bookings")
         .select(
-          "id, booking_serial, created_at, status, slot_number"
+          "id, booking_serial, created_at, status, slot_number, amount_due_now, amount_paid"
         )
         .eq("payment_batch_id", batchId)
         .eq("payer_user_id", user.id)
@@ -103,11 +104,28 @@ export default async function PaymentSuccessPage({
     }
 
     paymentAmount = Number(batch.amount);
+    totalDue = Number(batch.total_due);
+    paymentMode =
+      batch.payment_mode === "PARTIAL" ? "PARTIAL" : "FULL";
     paymentReference = batch.provider_payment_id;
     bookingReference = batch.id;
     playerCount = slots.length;
 
+    const validBatchAmounts =
+      Number.isFinite(paymentAmount) &&
+      paymentAmount > 0 &&
+      Number.isFinite(totalDue) &&
+      totalDue >= paymentAmount &&
+      slots.every(
+        (slot) =>
+          Number.isFinite(Number(slot.amount_due_now)) &&
+          Number(slot.amount_due_now) >= 0 &&
+          Number.isFinite(Number(slot.amount_paid)) &&
+          Number(slot.amount_paid) >= 0
+      );
+
     if (
+      validBatchAmounts &&
       batch.provider === "razorpay" &&
       batch.currency === "INR" &&
       batch.status === "CAPTURED" &&
@@ -137,8 +155,6 @@ export default async function PaymentSuccessPage({
           payment.status === "captured" &&
           payment.captured === true;
 
-        // One ticket represents the whole verified batch.
-        // Use the first confirmed slot's database serial.
         if (confirmed) {
           const firstSlot = slots[0];
 
@@ -151,7 +167,9 @@ export default async function PaymentSuccessPage({
               serial: Number(firstSlot.booking_serial),
               createdAt: firstSlot.created_at,
               quantity: slots.length,
-              playerFee: paymentAmount / slots.length,
+              // The ticket shows the full per-player fee,
+              // not just the deposit paid today.
+              playerFee: totalDue / slots.length,
             };
           }
         }
@@ -195,6 +213,7 @@ export default async function PaymentSuccessPage({
     }
 
     paymentAmount = Number(paymentRecord.amount);
+    totalDue = paymentAmount;
     paymentReference = paymentRecord.provider_payment_id;
     bookingReference = player.id;
 
@@ -251,9 +270,22 @@ export default async function PaymentSuccessPage({
   const validAmount =
     Number.isFinite(paymentAmount) && paymentAmount > 0;
 
+  const validTotalDue =
+    Number.isFinite(totalDue) && totalDue >= paymentAmount;
+
+  const outstandingBalance = validTotalDue
+    ? Math.max(0, totalDue - paymentAmount)
+    : 0;
+
   const displayedStatus = confirmed
     ? "CONFIRMED"
     : "PENDING VERIFICATION";
+
+  const formatRupees = (amount: number) =>
+    `₹${amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   return (
     <main className="page">
@@ -269,27 +301,59 @@ export default async function PaymentSuccessPage({
 
           <p className="muted">
             {confirmed
-              ? "Razorpay confirms your payment was captured, and your booking is confirmed."
+              ? outstandingBalance > 0
+                ? "Your payment has been verified and your booking is confirmed. The remaining balance has not been collected."
+                : "Razorpay confirms your payment was captured, and your booking is confirmed."
               : "We could not fully confirm your payment and booking yet. Do not pay again while the status is being checked."}
           </p>
 
           <div style={{ margin: "24px 0" }}>
-            <p className="label">PAYMENT STATUS</p>
+            <p className="label">BOOKING STATUS</p>
             <h2>{displayedStatus}</h2>
-
-            <p className="label">
-              {batchId ? "TOTAL PLAYER FEES" : "PLAYER FEE"}
-            </p>
-            <h2>
-              {validAmount
-                ? `₹${paymentAmount.toFixed(2)}`
-                : "Unavailable"}
-            </h2>
 
             {batchId && (
               <>
+                <p className="label">PAYMENT MODE</p>
+                <h2>
+                  {paymentMode === "PARTIAL"
+                    ? "FIXED BOOKING AMOUNT"
+                    : "FULL PAYMENT"}
+                </h2>
+
+                <p className="label">TOTAL BOOKING FEE</p>
+                <h2>
+                  {validTotalDue
+                    ? formatRupees(totalDue)
+                    : "Unavailable"}
+                </h2>
+
+                <p className="label">AMOUNT PAID NOW</p>
+                <h2>
+                  {validAmount
+                    ? formatRupees(paymentAmount)
+                    : "Unavailable"}
+                </h2>
+
+                <p className="label">BALANCE REMAINING</p>
+                <h2>
+                  {validTotalDue
+                    ? formatRupees(outstandingBalance)
+                    : "Unavailable"}
+                </h2>
+
                 <p className="label">PLAYER SLOTS</p>
                 <h2>{playerCount}</h2>
+              </>
+            )}
+
+            {!batchId && (
+              <>
+                <p className="label">PLAYER FEE</p>
+                <h2>
+                  {validAmount
+                    ? formatRupees(paymentAmount)
+                    : "Unavailable"}
+                </h2>
               </>
             )}
 

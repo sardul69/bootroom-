@@ -31,6 +31,7 @@ export default async function JoinGamePage({ params }: JoinPageProps) {
       slot_end,
       player_capacity,
       player_fee,
+      booking_amount,
       status,
       turfs (
         name,
@@ -56,16 +57,23 @@ export default async function JoinGamePage({ params }: JoinPageProps) {
   const end = new Date(game.slot_end);
   const capacity = Number(game.player_capacity);
   const playerFee = Number(game.player_fee);
+  const bookingAmount =
+    game.booking_amount == null ? undefined : Number(game.booking_amount);
 
   if (
     !Number.isFinite(start.getTime()) ||
     !Number.isFinite(end.getTime()) ||
     end.getTime() <= start.getTime() ||
     !Number.isSafeInteger(capacity) ||
-    capacity < 1 ||
+    capacity < 2 ||
     !Number.isFinite(playerFee) ||
-    playerFee <= 0
+    playerFee <= 0 ||
+    (bookingAmount !== undefined &&
+      (!Number.isFinite(bookingAmount) ||
+        bookingAmount <= 0 ||
+        bookingAmount > playerFee))
   ) {
+    console.error("Invalid game booking information:", { gameId: id });
     throw new Error("This game's booking information is invalid.");
   }
 
@@ -93,9 +101,7 @@ export default async function JoinGamePage({ params }: JoinPageProps) {
 
   const occupiedPlayers = Number(occupiedCount);
   const spotsLeft = Math.max(capacity - occupiedPlayers, 0);
-
-  const isFull =
-    game.status === "FULL" || occupiedPlayers >= capacity;
+  const isFull = game.status === "FULL" || occupiedPlayers >= capacity;
 
   const canJoin =
     game.status === "OPEN" &&
@@ -180,28 +186,27 @@ export default async function JoinGamePage({ params }: JoinPageProps) {
                 <h2>Choose your slots</h2>
 
                 <p className="muted" style={{ marginTop: 8 }}>
-                  Pay per player. The available number of slots is checked
-                  again securely when your booking is reserved.
+                  Pay per player. Your requested slots are checked again
+                  securely when your booking is reserved.
                 </p>
 
                 <div style={{ marginTop: 20 }}>
                   <GamePayButton
                     gameId={game.id}
                     amount={playerFee}
+                    bookingAmount={bookingAmount}
                   />
                 </div>
 
                 <p className="muted" style={{ marginTop: 12 }}>
-                  Payment confirmation is required before your booking
-                  is confirmed. Do not retry payment if a previous
-                  payment may have been captured.
+                  Payment confirmation is required before your booking is
+                  confirmed. Do not retry payment if a previous payment may
+                  have been captured.
                 </p>
               </>
             ) : (
               <>
-                <h2>
-                  {isFull ? "Game full" : "Joining unavailable"}
-                </h2>
+                <h2>{isFull ? "Game full" : "Joining unavailable"}</h2>
 
                 <p className="muted" style={{ marginTop: 8 }}>
                   {isFull

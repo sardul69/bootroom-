@@ -22,6 +22,7 @@ export default async function GamePage({ params }: GamePageProps) {
       slot_end,
       player_capacity,
       player_fee,
+      booking_amount,
       status,
       turfs (
         name,
@@ -41,30 +42,34 @@ export default async function GamePage({ params }: GamePageProps) {
     throw new Error("Unable to load this game. Please try again.");
   }
 
-  if (!game) {
-    notFound();
-  }
+  if (!game) notFound();
 
   const start = new Date(game.slot_start);
   const end = new Date(game.slot_end);
   const capacity = Number(game.player_capacity);
   const playerFee = Number(game.player_fee);
+  const bookingAmount =
+    game.booking_amount == null
+      ? null
+      : Number(game.booking_amount);
 
   if (
     !Number.isFinite(start.getTime()) ||
     !Number.isFinite(end.getTime()) ||
     end.getTime() <= start.getTime() ||
     !Number.isSafeInteger(capacity) ||
-    capacity < 1 ||
+    capacity < 2 ||
     !Number.isFinite(playerFee) ||
-    playerFee <= 0
+    playerFee <= 0 ||
+    (bookingAmount !== null &&
+      (!Number.isFinite(bookingAmount) ||
+        bookingAmount <= 0 ||
+        bookingAmount > playerFee))
   ) {
     console.error("Invalid game configuration:", { gameId: id });
     throw new Error("This game's schedule or booking information is invalid.");
   }
 
-  // This RPC must count confirmed players and unexpired pending holds
-  // from both the legacy and multi-slot booking tables.
   const { data: occupiedCount, error: countError } =
     await supabase.rpc("get_combined_player_count", {
       p_game_id: id,
@@ -89,16 +94,9 @@ export default async function GamePage({ params }: GamePageProps) {
 
   const occupiedPlayers = Number(occupiedCount);
   const spotsLeft = Math.max(capacity - occupiedPlayers, 0);
-
-  const isFull =
-    game.status === "FULL" || occupiedPlayers >= capacity;
-
+  const isFull = game.status === "FULL" || occupiedPlayers >= capacity;
   const isUpcoming = start.getTime() > Date.now();
-
-  const canJoin =
-    !isFull &&
-    game.status === "OPEN" &&
-    isUpcoming;
+  const canJoin = !isFull && game.status === "OPEN" && isUpcoming;
 
   const date = start.toLocaleDateString("en-IN", {
     weekday: "long",

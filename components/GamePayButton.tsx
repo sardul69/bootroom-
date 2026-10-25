@@ -4,9 +4,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+type PaymentMode = "FULL" | "PARTIAL";
+
 type GamePayButtonProps = {
   gameId: string;
   amount: number;
+  bookingAmount?: number | null;
 };
 
 type JoinResponse = {
@@ -17,7 +20,11 @@ type JoinResponse = {
   batchId?: string;
   quantity?: number;
   playerFee?: number;
+  bookingAmount?: number;
   totalAmount?: number;
+  totalDue?: number;
+  outstandingBalance?: number;
+  paymentMode?: PaymentMode;
   order?: {
     id: string;
     amount: number;
@@ -53,12 +60,22 @@ declare global {
 export default function GamePayButton({
   gameId,
   amount,
+  bookingAmount,
 }: GamePayButtonProps) {
   const router = useRouter();
 
   const [quantity, setQuantity] = useState(1);
+  const [paymentMode, setPaymentMode] =
+    useState<PaymentMode>("FULL");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  function money(value: number) {
+    return `₹${value.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
 
   async function loadRazorpay(): Promise<boolean> {
     if (window.Razorpay) return true;
@@ -69,14 +86,21 @@ export default function GamePayButton({
       );
 
       if (existing) {
+        if (existing.dataset.loaded === "true") {
+          resolve(Boolean(window.Razorpay));
+          return;
+        }
+
         existing.addEventListener(
           "load",
           () => resolve(Boolean(window.Razorpay)),
           { once: true }
         );
-        existing.addEventListener("error", () => resolve(false), {
-          once: true,
-        });
+        existing.addEventListener(
+          "error",
+          () => resolve(false),
+          { once: true }
+        );
         return;
       }
 
@@ -84,11 +108,20 @@ export default function GamePayButton({
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.async = true;
       script.dataset.razorpayCheckout = "true";
-      script.onload = () => resolve(Boolean(window.Razorpay));
+      script.onload = () => {
+        script.dataset.loaded = "true";
+        resolve(Boolean(window.Razorpay));
+      };
       script.onerror = () => resolve(false);
       document.body.appendChild(script);
     });
   }
+
+  const validBookingAmount =
+    typeof bookingAmount === "number" &&
+    Number.isFinite(bookingAmount) &&
+    bookingAmount > 0 &&
+    bookingAmount < amount;
 
   async function startPayment() {
     if (loading) return;
@@ -100,7 +133,14 @@ export default function GamePayButton({
       quantity < 1 ||
       quantity > 10
     ) {
-      setMessage("Invalid booking amount or number of slots.");
+      setMessage("Invalid player fee or number of slots.");
+      return;
+    }
+
+    if (paymentMode === "PARTIAL" && !validBookingAmount) {
+      setMessage(
+        "The fixed booking amount is not configured correctly. Please choose full payment or contact support."
+      );
       return;
     }
 
@@ -122,20 +162,64 @@ export default function GamePayButton({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ gameId, quantity }),
+        body: JSON.stringify({
+          gameId,
+          quantity,
+          paymentMode,
+        }),
       });
 
       const joinData = (await joinResponse.json()) as JoinResponse;
 
       if (!joinResponse.ok || !joinData.ok || !joinData.order) {
-        setMessage(joinData.error || "Could not reserve the requested slots.");
+        setMessage(
+          joinData.error || "Could not reserve the requested slots."
+        );
+        setLoading(false);
+        return;
+      }
+
+      const expectedTotalDuePaise = Math.round(
+        amount * quantity * 100
+      );
+
+      const expectedPayNowPaise = Math.round(
+        (paymentMode === "FULL"
+          ? amount
+          : Number(bookingAmount)) *
+          quantity *
+          100
+      );
+
+      if (
+        joinData.paymentMode !== paymentMode ||
+        !Number.isFinite(joinData.totalDue) ||
+        !Number.isFinite(joinData.totalAmount) ||
+        !Number.isFinite(joinData.outstandingBalance) ||
+        Math.round(joinData.totalDue! * 100) !==
+          expectedTotalDuePaise ||
+        Math.round(joinData.totalAmount! * 100) !==
+          expectedPayNowPaise ||
+        (paymentMode === "PARTIAL" &&
+          (!Number.isFinite(joinData.bookingAmount) ||
+            Math.round(joinData.bookingAmount! * 100) !==
+              Math.round(Number(bookingAmount) * 100))) ||
+        Math.round(
+          (joinData.totalAmount! +
+            joinData.outstandingBalance!) *
+            100
+        ) !== Math.round(joinData.totalDue! * 100)
+      ) {
+        setMessage(
+          "The server returned inconsistent payment details. Do not retry; contact support."
+        );
         setLoading(false);
         return;
       }
 
       const isBatch = Boolean(joinData.batchId);
       const bookingId = isBatch
-        ? joinData.batchId!
+        ? joinData.batchId
         : joinData.gamePlayerId;
 
       if (
@@ -143,10 +227,13 @@ export default function GamePayButton({
         !joinData.keyId ||
         !joinData.order.id ||
         !Number.isSafeInteger(joinData.order.amount) ||
-        joinData.order.amount <= 0
+        joinData.order.amount <= 0 ||
+        joinData.order.amount !==
+          Math.round(joinData.totalAmount! * 100) ||
+        joinData.order.amount !== expectedPayNowPaise
       ) {
         setMessage(
-          "The payment order response is incomplete. Please contact support before retrying."
+          "The payment order response is incomplete or inconsistent. Please contact support before retrying."
         );
         setLoading(false);
         return;
@@ -159,7 +246,11 @@ export default function GamePayButton({
         currency: joinData.order.currency || "INR",
         name: "TURFZY",
         description: isBatch
-          ? `${joinData.quantity || quantity} player slot(s)`
+          ? `${joinData.quantity || quantity} player slot(s) — ${
+              paymentMode === "PARTIAL"
+                ? "fixed booking amount"
+                : "full payment"
+            }`
           : "Football game entry",
         theme: { color: "#78ffad" },
         modal: {
@@ -188,9 +279,12 @@ export default function GamePayButton({
                   ...(isBatch
                     ? { batchId: bookingId }
                     : { gamePlayerId: bookingId }),
-                  razorpayPaymentId: razorpayResult.razorpay_payment_id,
-                  razorpayOrderId: razorpayResult.razorpay_order_id,
-                  razorpaySignature: razorpayResult.razorpay_signature,
+                  razorpayPaymentId:
+                    razorpayResult.razorpay_payment_id,
+                  razorpayOrderId:
+                    razorpayResult.razorpay_order_id,
+                  razorpaySignature:
+                    razorpayResult.razorpay_signature,
                 }),
               }
             );
@@ -254,14 +348,14 @@ export default function GamePayButton({
     }
   }
 
-  const total = Math.round(amount * quantity * 100) / 100;
+  const totalDue = Math.round(amount * quantity * 100) / 100;
 
-  function money(value: number) {
-    return `₹${value.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  }
+  const payNow =
+    paymentMode === "PARTIAL" && validBookingAmount
+      ? Math.round(bookingAmount! * quantity * 100) / 100
+      : totalDue;
+
+  const remaining = Math.max(0, totalDue - payNow);
 
   const panelStyle = {
     boxSizing: "border-box" as const,
@@ -289,6 +383,21 @@ export default function GamePayButton({
     fontWeight: 600,
     flexShrink: 0,
   } as const;
+
+  const paymentOptionStyle = (selected: boolean) => ({
+    display: "block",
+    width: "100%",
+    textAlign: "left" as const,
+    padding: 16,
+    borderRadius: 14,
+    border: selected
+      ? "1px solid #78ffad"
+      : "1px solid rgba(255,255,255,0.13)",
+    background: selected ? "rgba(120,255,173,0.09)" : "#0b120d",
+    color: "#f5f8f5",
+    cursor: loading ? "not-allowed" : "pointer",
+    opacity: loading ? 0.7 : 1,
+  });
 
   return (
     <div
@@ -414,7 +523,8 @@ export default function GamePayButton({
               style={{
                 ...slotButtonStyle,
                 opacity: quantity >= 10 || loading ? 0.4 : 1,
-                cursor: quantity >= 10 || loading ? "not-allowed" : "pointer",
+                cursor:
+                  quantity >= 10 || loading ? "not-allowed" : "pointer",
               }}
             >
               +
@@ -430,22 +540,106 @@ export default function GamePayButton({
           }}
         />
 
+        <p
+          style={{
+            margin: "0 0 12px",
+            fontSize: 12,
+            fontWeight: 800,
+            letterSpacing: "0.12em",
+            color: "#a7b7ac",
+          }}
+        >
+          CHOOSE PAYMENT OPTION
+        </p>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          <button
+            type="button"
+            disabled={loading}
+            aria-pressed={paymentMode === "FULL"}
+            onClick={() => setPaymentMode("FULL")}
+            style={paymentOptionStyle(paymentMode === "FULL")}
+          >
+            <span
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "center",
+              }}
+            >
+              <strong>Pay in Full</strong>
+              <strong style={{ color: "#78ffad" }}>
+                {money(totalDue)}
+              </strong>
+            </span>
+            <span
+              style={{
+                display: "block",
+                marginTop: 6,
+                color: "#a7b7ac",
+                fontSize: 13,
+              }}
+            >
+              Pay the entire fee now. No balance remains.
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled={loading || !validBookingAmount}
+            aria-pressed={paymentMode === "PARTIAL"}
+            onClick={() => setPaymentMode("PARTIAL")}
+            style={paymentOptionStyle(paymentMode === "PARTIAL")}
+          >
+            <span
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "center",
+              }}
+            >
+              <strong>Pay Booking Amount</strong>
+              <strong style={{ color: "#78ffad" }}>
+                {validBookingAmount
+                  ? money(bookingAmount! * quantity)
+                  : "Unavailable"}
+              </strong>
+            </span>
+            <span
+              style={{
+                display: "block",
+                marginTop: 6,
+                color: "#a7b7ac",
+                fontSize: 13,
+              }}
+            >
+              {validBookingAmount
+                ? `Pay ${money(bookingAmount!)} per player now and settle the remaining ${money(remaining)} later.`
+                : "The owner has not configured a valid booking amount for this game."}
+            </span>
+          </button>
+        </div>
+
+        <div
+          style={{
+            height: 1,
+            background: "rgba(255,255,255,0.1)",
+            margin: "22px 0 18px",
+          }}
+        />
+
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1fr) auto",
-            alignItems: "end",
             gap: 12,
+            alignItems: "start",
           }}
         >
           <div>
-            <p
-              style={{
-                margin: "0 0 6px",
-                color: "#a7b7ac",
-                fontSize: 12,
-              }}
-            >
+            <p style={{ margin: "0 0 6px", color: "#a7b7ac", fontSize: 12 }}>
               PRICE PER PLAYER
             </p>
             <p style={{ margin: 0, fontSize: 17, fontWeight: 750 }}>
@@ -454,14 +648,8 @@ export default function GamePayButton({
           </div>
 
           <div style={{ textAlign: "right" }}>
-            <p
-              style={{
-                margin: "0 0 6px",
-                color: "#a7b7ac",
-                fontSize: 12,
-              }}
-            >
-              TOTAL PAYMENT
+            <p style={{ margin: "0 0 6px", color: "#a7b7ac", fontSize: 12 }}>
+              PAY NOW
             </p>
             <p
               style={{
@@ -470,20 +658,36 @@ export default function GamePayButton({
                 fontSize: "clamp(25px, 5.5vw, 32px)",
                 fontWeight: 900,
                 lineHeight: 1.15,
-                letterSpacing: "-0.03em",
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {money(total)}
+              {money(payNow)}
             </p>
           </div>
         </div>
+
+        {paymentMode === "PARTIAL" && (
+          <p
+            style={{
+              margin: "14px 0 0",
+              color: "#d6e4d9",
+              fontSize: 13,
+              lineHeight: 1.6,
+            }}
+          >
+            Total fee: {money(totalDue)} · Pay now: {money(payNow)} ·
+            Remaining: {money(remaining)}
+          </p>
+        )}
       </section>
 
       <button
         type="button"
         onClick={startPayment}
-        disabled={loading}
+        disabled={
+          loading ||
+          (paymentMode === "PARTIAL" && !validBookingAmount)
+        }
         style={{
           boxSizing: "border-box",
           width: "100%",
@@ -509,7 +713,9 @@ export default function GamePayButton({
             : "0 8px 26px rgba(120,255,173,0.16)",
         }}
       >
-        <span>{loading ? "PROCESSING PAYMENT…" : `PAY ${money(total)}`}</span>
+        <span>
+          {loading ? "PROCESSING PAYMENT…" : `PAY ${money(payNow)}`}
+        </span>
         {!loading && (
           <span aria-hidden="true" style={{ fontSize: 21, lineHeight: 1 }}>
             →

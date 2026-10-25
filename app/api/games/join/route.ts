@@ -13,7 +13,11 @@ const UUID =
 type RecordValue = Record<string, unknown>;
 
 function isRecord(value: unknown): value is RecordValue {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }
 
 function respond(
@@ -24,13 +28,7 @@ function respond(
   extra: Record<string, unknown> = {}
 ) {
   return NextResponse.json(
-    {
-      ok: false,
-      error: message,
-      code,
-      requestId,
-      ...extra,
-    },
+    { ok: false, error: message, code, requestId, ...extra },
     {
       status,
       headers: { "Cache-Control": "no-store" },
@@ -77,8 +75,29 @@ function getPaymentKeyId(): string | null {
   return keyId;
 }
 
+function toPaise(value: unknown): number | null {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+
+  const paise = Math.round(amount * 100);
+
+  if (
+    !Number.isSafeInteger(paise) ||
+    paise <= 0 ||
+    Math.abs(amount * 100 - paise) > 1e-7
+  ) {
+    return null;
+  }
+
+  return paise;
+}
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
+  let reservedBatchId: string | undefined;
 
   try {
     // 1. Authenticate the payer.
@@ -111,7 +130,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. Validate the request.
+    // 2. Validate request content type and body.
     if (
       !(req.headers.get("content-type") ?? "")
         .toLowerCase()
@@ -162,6 +181,7 @@ export async function POST(req: Request) {
       );
     }
 
+    const gameId = body.gameId;
     const quantity = body.quantity === undefined ? 1 : body.quantity;
 
     if (
@@ -178,9 +198,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const gameId = body.gameId;
+    const paymentMode =
+      body.paymentMode === undefined ? "FULL" : body.paymentMode;
 
-    // 3. Validate the Razorpay environment.
+    if (paymentMode !== "FULL" && paymentMode !== "PARTIAL") {
+      return respond(
+        "Choose full payment or fixed booking amount.",
+        400,
+        "INVALID_PAYMENT_MODE",
+        requestId
+      );
+    }
+
+    // 3. Validate Razorpay configuration.
     const keyId = getPaymentKeyId();
 
     if (!keyId) {
@@ -194,7 +224,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Read the authoritative game price.
+    // 4. Load authoritative prices from the database.
     let admin;
 
     try {
@@ -212,7 +242,9 @@ export async function POST(req: Request) {
 
     const { data: game, error: gameError } = await admin
       .from("games")
-      .select("id, player_fee, player_capacity, status, slot_start")
+      .select(
+        "id, player_fee, booking_amount, player_capacity, status, slot_start"
+      )
       .eq("id", gameId)
       .maybeSingle();
 
@@ -236,11 +268,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const startTime = game.slot_start
+      ? new Date(game.slot_start).getTime()
+      : NaN;
+
     if (
       game.status !== "OPEN" ||
-      !game.slot_start ||
-      !Number.isFinite(new Date(game.slot_start).getTime()) ||
-      new Date(game.slot_start).getTime() <= Date.now()
+      !Number.isFinite(startTime) ||
+      startTime <= Date.now()
     ) {
       return respond(
         "This game is no longer available to join.",
@@ -250,18 +285,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const fee = Number(game.player_fee);
-    const feeInPaise = Math.round(fee * 100);
-    const totalInPaise = feeInPaise * quantity;
+    const feeInPaise = toPaise(game.player_fee);
+    const bookingFeeInPaise = toPaise(game.booking_amount);
 
     if (
-      !Number.isFinite(fee) ||
-      fee <= 0 ||
-      !Number.isSafeInteger(feeInPaise) ||
-      feeInPaise <= 0 ||
-      Math.abs(fee * 100 - feeInPaise) > 1e-7 ||
-      !Number.isSafeInteger(totalInPaise) ||
-      totalInPaise <= 0
+      feeInPaise === null ||
+      !Number.isSafeInteger(feeInPaise * quantity)
     ) {
       logFailure("INVALID_FEE", requestId, undefined, { gameId });
 
@@ -273,22 +302,59 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5. Reserve the requested slots atomically.
-    // The RPC must check capacity while locking the game row.
-    const { data: reservation, error: reservationError } = await admin.rpc(
-      "reserve_game_slot_batch",
-      {
+    // PARTIAL must be a genuine deposit, strictly less than the full fee.
+    // Legacy games with booking_amount equal to player_fee can still use FULL.
+    if (
+      paymentMode === "PARTIAL" &&
+      (
+        bookingFeeInPaise === null ||
+        bookingFeeInPaise >= feeInPaise
+      )
+    ) {
+      return respond(
+        "A valid fixed booking amount has not been configured for this game. Please choose full payment or contact support.",
+        409,
+        "INVALID_BOOKING_AMOUNT",
+        requestId
+      );
+    }
+
+    const totalDueInPaise = feeInPaise * quantity;
+
+    // PARTIAL charges the fixed booking amount per player, not a percentage.
+    const expectedPayNowInPaise =
+      paymentMode === "PARTIAL"
+        ? bookingFeeInPaise! * quantity
+        : totalDueInPaise;
+
+    if (
+      !Number.isSafeInteger(expectedPayNowInPaise) ||
+      expectedPayNowInPaise <= 0 ||
+      expectedPayNowInPaise > totalDueInPaise
+    ) {
+      return respond(
+        "The payment amount is invalid.",
+        500,
+        "INVALID_PAYMENT_AMOUNT",
+        requestId
+      );
+    }
+
+    // 5. Reserve slots atomically in the database.
+    const { data: reservation, error: reservationError } =
+      await admin.rpc("reserve_game_slot_batch_v2", {
         p_game_id: gameId,
         p_quantity: quantity,
         p_payer_user_id: user.id,
         p_participant_names: null,
-      }
-    );
+        p_payment_mode: paymentMode,
+      });
 
     if (reservationError) {
       logFailure("RESERVATION", requestId, reservationError, {
         gameId,
         quantity,
+        paymentMode,
       });
 
       const detail = reservationError.message.toLowerCase();
@@ -307,10 +373,8 @@ export async function POST(req: Request) {
         );
       }
 
-      // A missing migration/function is a server setup issue, not a reason
-      // to silently fall back to the legacy single-player payment flow.
       return respond(
-        "Multi-player booking is not ready yet. Please contact support.",
+        "The booking service could not reserve these slots. Please contact support if this continues.",
         503,
         "BATCH_RESERVATION_UNAVAILABLE",
         requestId
@@ -327,11 +391,14 @@ export async function POST(req: Request) {
       !UUID.test(batch.batchId) ||
       batch.gameId !== gameId ||
       Number(batch.quantity) !== quantity ||
-      Math.round(Number(batch.amount) * 100) !== totalInPaise
+      batch.paymentMode !== paymentMode ||
+      !Number.isFinite(Number(batch.amount)) ||
+      !Number.isFinite(Number(batch.totalDue))
     ) {
       logFailure("RESERVATION_VALIDATION", requestId, undefined, {
         gameId,
         quantity,
+        paymentMode,
       });
 
       return respond(
@@ -343,13 +410,44 @@ export async function POST(req: Request) {
     }
 
     const batchId = batch.batchId;
+    reservedBatchId = batchId;
 
-    // 6. Create one provider order for the full batch.
+    const amountInPaise = toPaise(batch.amount);
+    const totalDueInPaiseFromDb = toPaise(batch.totalDue);
+
+    // Never proceed if the database reservation disagrees with the prices.
+    if (
+      amountInPaise === null ||
+      totalDueInPaiseFromDb === null ||
+      amountInPaise !== expectedPayNowInPaise ||
+      totalDueInPaiseFromDb !== totalDueInPaise ||
+      amountInPaise > totalDueInPaiseFromDb
+    ) {
+      logFailure("RESERVATION_AMOUNT_MISMATCH", requestId, undefined, {
+        gameId,
+        batchId,
+        paymentMode,
+        amountInPaise,
+        expectedPayNowInPaise,
+        totalDueInPaiseFromDb,
+        totalDueInPaise,
+      });
+
+      return respond(
+        "The reserved payment amount did not match the expected amount. Do not retry; contact support.",
+        500,
+        "RESERVATION_AMOUNT_MISMATCH",
+        requestId,
+        { batchId }
+      );
+    }
+
+    // 6. Create the Razorpay order for the verified amount.
     let order;
 
     try {
       order = await createRazorpayOrder({
-        amount: totalInPaise,
+        amount: amountInPaise,
         receipt: batchId,
         notes: {
           booking_type: "multi_slot",
@@ -357,6 +455,12 @@ export async function POST(req: Request) {
           game_id: gameId,
           payer_user_id: user.id,
           quantity: String(quantity),
+          payment_mode: paymentMode,
+          total_due: (totalDueInPaiseFromDb / 100).toFixed(2),
+          booking_amount_per_player:
+            bookingFeeInPaise === null
+              ? ""
+              : (bookingFeeInPaise / 100).toFixed(2),
         },
       });
     } catch (error) {
@@ -364,10 +468,9 @@ export async function POST(req: Request) {
         gameId,
         batchId,
         quantity,
+        paymentMode,
       });
 
-      // The batch may still have a live hold. Do not automatically create
-      // another batch/order; resolve this reservation before retrying.
       return respond(
         "Payment setup could not be completed. Do not retry repeatedly; contact support if this continues.",
         502,
@@ -379,7 +482,7 @@ export async function POST(req: Request) {
 
     if (
       !order?.id ||
-      order.amount !== totalInPaise ||
+      order.amount !== amountInPaise ||
       order.currency !== "INR" ||
       order.receipt !== batchId
     ) {
@@ -397,11 +500,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // 7. Persist the order-to-batch association before returning it.
-    const { error: attachError } = await admin.rpc("attach_game_slot_order", {
-      p_batch_id: batchId,
-      p_order_id: order.id,
-    });
+    // 7. Attach the order to the reserved batch before exposing checkout.
+    const { error: attachError } = await admin.rpc(
+      "attach_game_slot_order",
+      {
+        p_batch_id: batchId,
+        p_order_id: order.id,
+      }
+    );
 
     if (attachError) {
       logFailure("ORDER_ATTACHMENT", requestId, attachError, {
@@ -410,8 +516,6 @@ export async function POST(req: Request) {
         orderId: order.id,
       });
 
-      // Do not expose an order whose association was not persisted.
-      // The order and batch need reconciliation rather than a second charge.
       return respond(
         "Payment setup needs support review. Do not attempt another payment.",
         503,
@@ -421,7 +525,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 8. Return the verified server-created order.
+    // 8. Return the server-created order and authoritative totals.
     return NextResponse.json(
       {
         ok: true,
@@ -429,8 +533,16 @@ export async function POST(req: Request) {
         gameId,
         batchId,
         quantity,
-        playerFee: fee,
-        totalAmount: totalInPaise / 100,
+        playerFee: feeInPaise / 100,
+        bookingAmount:
+          bookingFeeInPaise === null
+            ? null
+            : bookingFeeInPaise / 100,
+        paymentMode,
+        totalDue: totalDueInPaiseFromDb / 100,
+        totalAmount: amountInPaise / 100,
+        outstandingBalance:
+          (totalDueInPaiseFromDb - amountInPaise) / 100,
         order: {
           id: order.id,
           amount: order.amount,
@@ -444,13 +556,16 @@ export async function POST(req: Request) {
       }
     );
   } catch (error) {
-    logFailure("UNEXPECTED", requestId, error);
+    logFailure("UNEXPECTED", requestId, error, {
+      batchId: reservedBatchId ?? null,
+    });
 
     return respond(
       "An unexpected error occurred. Check your booking status before retrying.",
       500,
       "UNEXPECTED_ERROR",
-      requestId
+      requestId,
+      reservedBatchId ? { batchId: reservedBatchId } : {}
     );
   }
 }

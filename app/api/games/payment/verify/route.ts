@@ -17,10 +17,7 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function response(
-  body: JsonRecord,
-  status = 200
-) {
+function response(body: JsonRecord, status = 200) {
   return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "no-store" },
@@ -139,7 +136,6 @@ export async function POST(req: Request) {
       razorpaySignature,
     } = body;
 
-    // Exactly one booking flow must be selected.
     const isBatch = batchId !== undefined;
 
     if (
@@ -187,7 +183,6 @@ export async function POST(req: Request) {
     let storedSignature: string | null;
 
     if (isBatch) {
-      // Multi-slot checkout.
       const { data: batch, error: batchError } = await supabase
         .from("game_payment_batches")
         .select(
@@ -229,7 +224,6 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      // Existing single-player checkout remains supported.
       const { data: paymentRecord, error: recordError } = await supabase
         .from("game_payments")
         .select(
@@ -362,37 +356,46 @@ export async function POST(req: Request) {
       );
     }
 
-    // A retry after a previously successful verification is safe.
+    // Retry safely: success is returned only when every slot in this batch
+    // is confirmed, never merely because one confirmed slot exists.
     if (
       isBatch &&
       existingStatus === "CAPTURED" &&
       storedPaymentId === razorpayPaymentId
     ) {
-      const { data: confirmedSlots, error: slotsError } = await supabase
+      const { data: allBatchSlots, error: slotsError } = await supabase
         .from("game_slot_bookings")
         .select("id, public_reference, status")
         .eq("payment_batch_id", batchId)
-        .eq("payer_user_id", user.id)
-        .eq("status", "CONFIRMED");
+        .eq("payer_user_id", user.id);
 
-      if (slotsError) {
-        console.error("Confirmed slot lookup failed:", slotsError.message);
+      if (slotsError || !allBatchSlots?.length) {
+        console.error("Batch retry slot lookup failed.", {
+          batchId,
+          message: slotsError?.message,
+        });
+
         return pendingReconciliation(
           "Payment is captured. Booking confirmation is being checked; do not pay again."
         );
       }
 
-      if (confirmedSlots?.length) {
+      if (allBatchSlots.every((slot) => slot.status === "CONFIRMED")) {
         return response({
           ok: true,
           paymentVerified: true,
           bookingConfirmed: true,
           batchId,
-          bookingReferences: confirmedSlots.map(
+          quantity: allBatchSlots.length,
+          bookingReferences: allBatchSlots.map(
             (slot) => slot.public_reference
           ),
         });
       }
+
+      return pendingReconciliation(
+        "Payment is captured, but not all booking slots are confirmed. Do not pay again."
+      );
     }
 
     if (
@@ -400,12 +403,19 @@ export async function POST(req: Request) {
       existingStatus === "CAPTURED" &&
       storedPaymentId === razorpayPaymentId
     ) {
-      const { data: player } = await supabase
+      const { data: player, error: playerError } = await supabase
         .from("game_players")
         .select("status")
         .eq("id", gamePlayerId)
         .eq("user_id", user.id)
         .maybeSingle();
+
+      if (playerError) {
+        console.error("Player retry lookup failed:", playerError.message);
+        return pendingReconciliation(
+          "Payment is captured. Booking confirmation is being checked; do not pay again."
+        );
+      }
 
       if (player?.status === "CONFIRMED") {
         return response({
@@ -417,8 +427,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Never mark a booking confirmed in application code. The database
-    // finalization RPC is the only authority for that transition.
+    // The database RPC remains the only authority for booking confirmation.
     const rpcName = isBatch
       ? "finalize_game_slot_batch"
       : "finalize_game_payment";
@@ -462,10 +471,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (
-      isRecord(finalizeResult) &&
-      finalizeResult.ok === false
-    ) {
+    if (isRecord(finalizeResult) && finalizeResult.ok === false) {
       return pendingReconciliation(
         "Payment was captured, but booking finalization needs review. Do not pay again."
       );
