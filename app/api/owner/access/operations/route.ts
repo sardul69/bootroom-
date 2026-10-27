@@ -76,12 +76,9 @@ async function authorize(request: NextRequest) {
   return { user };
 }
 
-/**
- * Fetch every player profile in pages rather than silently stopping at 300.
- * A stable secondary order prevents records with matching names from being
- * skipped between pages.
- */
-async function fetchAllPlayers(admin: ReturnType<typeof createAdminClient>) {
+async function fetchAllPlayers(
+  admin: ReturnType<typeof createAdminClient>
+) {
   const pageSize = 1000;
   const allPlayers: Record<string, unknown>[] = [];
 
@@ -95,19 +92,34 @@ async function fetchAllPlayers(admin: ReturnType<typeof createAdminClient>) {
       .order("id", { ascending: true })
       .range(from, from + pageSize - 1);
 
-    if (error) {
-      return { data: null, error };
-    }
+    if (error) return { data: null, error };
 
     const page = data ?? [];
     allPlayers.push(...page);
 
-    if (page.length < pageSize) {
-      break;
-    }
+    if (page.length < pageSize) break;
   }
 
   return { data: allPlayers, error: null };
+}
+
+function validateGoogleMapsUrl(value: string): boolean {
+  if (!value) return true;
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+
+    return (
+      url.protocol === "https:" &&
+      (host === "maps.app.goo.gl" ||
+        host === "goo.gl" ||
+        host === "google.com" ||
+        host.endsWith(".google.com"))
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -160,10 +172,7 @@ export async function GET(request: NextRequest) {
       });
 
       return json(
-        {
-          error:
-            "Unable to load dashboard records. Check server logs.",
-        },
+        { error: "Unable to load dashboard records. Check server logs." },
         500
       );
     }
@@ -232,10 +241,13 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Create a reusable turf from a manually entered name.
+    // Create a reusable turf with its address and Maps link.
     if (body.action === "create-turf") {
-      const name =
-        typeof body.name === "string" ? body.name.trim() : "";
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const address =
+        typeof body.address === "string" ? body.address.trim() : "";
+      const mapsUrl =
+        typeof body.maps_url === "string" ? body.maps_url.trim() : "";
 
       if (name.length < 2 || name.length > 120) {
         return json(
@@ -244,53 +256,116 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Reuse a matching name instead of creating duplicate listings.
+      if (address.length > 500) {
+        return json({ error: "Venue address is too long." }, 400);
+      }
+
+      if (!address && !mapsUrl) {
+        return json(
+          { error: "Enter the venue address or a Google Maps link." },
+          400
+        );
+      }
+
+      if (mapsUrl.length > 2048 || !validateGoogleMapsUrl(mapsUrl)) {
+        return json(
+          { error: "Please provide a valid HTTPS Google Maps link." },
+          400
+        );
+      }
+
       const { data: matchingTurfs, error: lookupError } = await admin
         .from("turfs")
-        .select("id,name")
+        .select("id,name,venue_id")
         .ilike("name", name)
         .limit(100);
 
       if (lookupError) {
         console.error("Turf lookup failed:", lookupError.message);
-        return json(
-          { error: "Could not check existing turfs." },
-          500
-        );
+        return json({ error: "Could not check existing turfs." }, 500);
       }
 
       const existing = (matchingTurfs ?? []).find(
-        (turf) =>
-          turf.name.trim().toLowerCase() === name.toLowerCase()
+        (turf) => turf.name.trim().toLowerCase() === name.toLowerCase()
       );
 
+      // Reuse an existing turf rather than creating a duplicate.
       if (existing) {
-        return json({ id: existing.id, name: existing.name });
+        const { data: venue, error: venueReadError } = await admin
+          .from("venues")
+          .select("id,name,locality,address,maps_url")
+          .eq("id", existing.venue_id)
+          .maybeSingle();
+
+        if (venueReadError || !venue) {
+          console.error(
+            "Existing venue lookup failed:",
+            venueReadError?.message
+          );
+          return json(
+            { error: "Could not load the existing venue." },
+            500
+          );
+        }
+
+        // Only supplied fields are updated; omitted fields are preserved.
+        const update: { address?: string; maps_url?: string | null } = {};
+
+        if (address) update.address = address;
+        if (mapsUrl) update.maps_url = mapsUrl;
+
+        let finalAddress = venue.address;
+        let finalMapsUrl = venue.maps_url;
+
+        if (Object.keys(update).length > 0) {
+          const { data: updatedVenue, error: updateError } = await admin
+            .from("venues")
+            .update(update)
+            .eq("id", venue.id)
+            .select("id,name,locality,address,maps_url")
+            .single();
+
+          if (updateError || !updatedVenue) {
+            console.error(
+              "Venue location update failed:",
+              updateError?.message
+            );
+            return json(
+              { error: "Could not update the venue location." },
+              500
+            );
+          }
+
+          finalAddress = updatedVenue.address;
+          finalMapsUrl = updatedVenue.maps_url;
+        }
+
+        return json({
+          id: existing.id,
+          name: existing.name,
+          address: finalAddress,
+          maps_url: finalMapsUrl,
+          locality: venue.locality,
+        });
       }
 
-      // A manually entered name does not verify the real-world location.
       const { data: venue, error: venueError } = await admin
         .from("venues")
         .insert({
           owner_id: auth.user.id,
           name,
           locality: "Kolkata",
-          address: name,
+          address: address || name,
+          maps_url: mapsUrl || null,
           verified: false,
           active: true,
         })
-        .select("id")
+        .select("id,name,locality,address,maps_url")
         .single();
 
       if (venueError || !venue) {
-        console.error(
-          "Venue creation failed:",
-          venueError?.message
-        );
-        return json(
-          { error: "Could not create the venue record." },
-          500
-        );
+        console.error("Venue creation failed:", venueError?.message);
+        return json({ error: "Could not create the venue record." }, 500);
       }
 
       const { data: turf, error: turfError } = await admin
@@ -306,32 +381,27 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (turfError || !turf) {
-        console.error(
-          "Turf creation failed:",
-          turfError?.message
-        );
+        console.error("Turf creation failed:", turfError?.message);
 
-        // Clean up the venue created by this request.
         const { error: cleanupError } = await admin
           .from("venues")
           .delete()
           .eq("id", venue.id);
 
         if (cleanupError) {
-          console.error(
-            "Venue cleanup failed:",
-            cleanupError.message
-          );
+          console.error("Venue cleanup failed:", cleanupError.message);
         }
 
-        return json(
-          { error: "Could not save the new turf." },
-          500
-        );
+        return json({ error: "Could not save the new turf." }, 500);
       }
 
-      // OwnerConsole.tsx expects id and name at the top level.
-      return json({ id: turf.id, name: turf.name });
+      return json({
+        id: turf.id,
+        name: turf.name,
+        address: venue.address,
+        maps_url: venue.maps_url,
+        locality: venue.locality,
+      });
     }
 
     // Cancel without deleting payment or booking history.
@@ -374,10 +444,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error("Game cancellation failed", error.message);
-        return json(
-          { error: "Could not cancel this game." },
-          500
-        );
+        return json({ error: "Could not cancel this game." }, 500);
       }
 
       return json({
@@ -413,25 +480,19 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { data: linkedPlayers, error: playersError } =
-        await admin
-          .from("game_players")
-          .select("id")
-          .eq("game_id", id);
+      const { data: linkedPlayers, error: playersError } = await admin
+        .from("game_players")
+        .select("id")
+        .eq("game_id", id);
 
       if (playersError) {
         return json(
-          {
-            error:
-              "Could not verify player records. Deletion blocked.",
-          },
+          { error: "Could not verify player records. Deletion blocked." },
           500
         );
       }
 
-      const playerIds = (linkedPlayers ?? []).map(
-        (row) => row.id
-      );
+      const playerIds = (linkedPlayers ?? []).map((row) => row.id);
 
       const checks = await Promise.all([
         admin
@@ -469,10 +530,7 @@ export async function POST(request: NextRequest) {
 
       if (checks.some((check) => check.error)) {
         return json(
-          {
-            error:
-              "Could not verify all linked records. Deletion blocked.",
-          },
+          { error: "Could not verify all linked records. Deletion blocked." },
           500
         );
       }
@@ -533,10 +591,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error("Suggestion review failed", error.message);
-        return json(
-          { error: "Could not update this suggestion." },
-          500
-        );
+        return json({ error: "Could not update this suggestion." }, 500);
       }
 
       return json({
@@ -551,10 +606,7 @@ export async function POST(request: NextRequest) {
         typeof body.profileId === "string" ? body.profileId : "";
 
       if (!profileId) {
-        return json(
-          { error: "Player profile ID required." },
-          400
-        );
+        return json({ error: "Player profile ID required." }, 400);
       }
 
       const fields = [
@@ -578,11 +630,7 @@ export async function POST(request: NextRequest) {
         if (body[field] === undefined) continue;
 
         const value = Number(body[field]);
-        const max = [
-          "appearances",
-          "goals",
-          "assists",
-        ].includes(field)
+        const max = ["appearances", "goals", "assists"].includes(field)
           ? 1000000
           : 99;
 
@@ -591,20 +639,14 @@ export async function POST(request: NextRequest) {
           value < 0 ||
           value > max
         ) {
-          return json(
-            { error: `Invalid value for ${field}.` },
-            400
-          );
+          return json({ error: `Invalid value for ${field}.` }, 400);
         }
 
         update[field] = value;
       }
 
       if (!Object.keys(update).length) {
-        return json(
-          { error: "No player-card fields supplied." },
-          400
-        );
+        return json({ error: "No player-card fields supplied." }, 400);
       }
 
       const { error } = await admin
@@ -620,14 +662,8 @@ export async function POST(request: NextRequest) {
         );
 
       if (error) {
-        console.error(
-          "Player card update failed",
-          error.message
-        );
-        return json(
-          { error: "Could not update the player card." },
-          500
-        );
+        console.error("Player card update failed", error.message);
+        return json({ error: "Could not update the player card." }, 500);
       }
 
       return json({

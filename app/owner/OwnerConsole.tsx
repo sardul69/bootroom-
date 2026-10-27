@@ -10,10 +10,14 @@ import OwnerOperations from "@/components/owner/OwnerOperations";
 type Turf = {
   id: string;
   name: string;
-  venues: {
-    name: string;
-    locality: string;
-  }[] | null;
+  venues:
+    | {
+        name: string;
+        locality: string;
+        address?: string | null;
+        maps_url?: string | null;
+      }[]
+    | null;
 };
 
 const confetti = Array.from({ length: 72 }, (_, i) => ({
@@ -24,8 +28,6 @@ const confetti = Array.from({ length: 72 }, (_, i) => ({
   color: ["#e7c879", "#f8f1d9", "#5cf58e", "#c8a4ff", "#ff9dba"][i % 5],
 }));
 
-// Strictly interpret YYYY-MM-DD HH:MM as Indian Standard Time.
-// This does not depend on the browser/device timezone.
 function parseIstDateTime(value: string): Date | null {
   const match =
     /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(value.trim());
@@ -64,11 +66,28 @@ function parseIstDateTime(value: string): Date | null {
     return null;
   }
 
-  const result = new Date(
-    `${ys}-${mos}-${ds}T${hs}:${mis}:00+05:30`
-  );
-
+  const result = new Date(`${ys}-${mos}-${ds}T${hs}:${mis}:00+05:30`);
   return Number.isNaN(result.getTime()) ? null : result;
+}
+
+function isGoogleMapsUrl(value: string): boolean {
+  if (!value.trim()) return true;
+
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.toLowerCase();
+
+    return (
+      url.protocol === "https:" &&
+      (host === "maps.app.goo.gl" ||
+        host === "goo.gl" ||
+        host === "google.com" ||
+        host.endsWith(".google.com") ||
+        host === "maps.google.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
 export default function OwnerConsole({ email }: { email: string }) {
@@ -78,6 +97,8 @@ export default function OwnerConsole({ email }: { email: string }) {
   const [turfs, setTurfs] = useState<Turf[]>([]);
   const [turfId, setTurfId] = useState("");
   const [turfName, setTurfName] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [mapsUrl, setMapsUrl] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [capacity, setCapacity] = useState("10");
@@ -95,16 +116,15 @@ export default function OwnerConsole({ email }: { email: string }) {
     async function load() {
       const { data, error } = await supabase
         .from("turfs")
-        .select("id, name, venues(name, locality)")
+        .select("id, name, venues(name, locality, address, maps_url)")
         .order("name");
 
       if (!alive) return;
 
       if (error) {
-        setMessage("Could not load turfs. " + error.message);
+        setMessage("Could not load saved turfs. " + error.message);
       } else {
-        const loaded = (data ?? []) as Turf[];
-        setTurfs(loaded);
+        setTurfs((data ?? []) as Turf[]);
       }
 
       setLoadingTurfs(false);
@@ -124,11 +144,16 @@ export default function OwnerConsole({ email }: { email: string }) {
     setTurfName(value);
 
     const matchingTurf = turfs.find(
-      (turf) =>
-        turf.name.trim().toLowerCase() === value.trim().toLowerCase()
+      (turf) => turf.name.trim().toLowerCase() === value.trim().toLowerCase()
     );
 
     setTurfId(matchingTurf?.id ?? "");
+
+    const venue = matchingTurf?.venues?.[0];
+    if (matchingTurf) {
+      setVenueAddress(venue?.address ?? "");
+      setMapsUrl(venue?.maps_url ?? "");
+    }
   }
 
   async function resolveTurfId(): Promise<string | null> {
@@ -145,23 +170,39 @@ export default function OwnerConsole({ email }: { email: string }) {
 
     if (existingTurf) {
       setTurfId(existingTurf.id);
+
+      // Existing turf details are not silently overwritten here.
+      // This avoids changing the venue used by previously created games.
       return existingTurf.id;
     }
 
-    // New turf records must be created by the protected server endpoint.
+    if (!venueAddress.trim() && !mapsUrl.trim()) {
+      setMessage(
+        "For a new turf, enter its venue address or paste its Google Maps link."
+      );
+      return null;
+    }
+
+    if (!isGoogleMapsUrl(mapsUrl)) {
+      setMessage(
+        "Enter a valid HTTPS Google Maps link, such as a maps.app.goo.gl link."
+      );
+      return null;
+    }
+
     const response = await fetch("/api/owner/access/operations", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       cache: "no-store",
       body: JSON.stringify({
         action: "create-turf",
         name: cleanName,
+        address: venueAddress.trim(),
+        maps_url: mapsUrl.trim(),
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
 
     if (!response.ok || typeof result.id !== "string") {
       setMessage(result.error || "Could not save this turf.");
@@ -174,15 +215,15 @@ export default function OwnerConsole({ email }: { email: string }) {
       venues: [
         {
           name: result.name || cleanName,
-          locality: "Kolkata",
+          locality: result.locality || "Kolkata",
+          address: result.address || venueAddress.trim(),
+          maps_url: result.maps_url || mapsUrl.trim(),
         },
       ],
     };
 
     setTurfs((current) => {
-      const alreadyAdded = current.some((turf) => turf.id === savedTurf.id);
-      if (alreadyAdded) return current;
-
+      if (current.some((turf) => turf.id === savedTurf.id)) return current;
       return [...current, savedTurf].sort((a, b) =>
         a.name.localeCompare(b.name)
       );
@@ -190,7 +231,6 @@ export default function OwnerConsole({ email }: { email: string }) {
 
     setTurfName(savedTurf.name);
     setTurfId(savedTurf.id);
-
     return savedTurf.id;
   }
 
@@ -210,7 +250,7 @@ export default function OwnerConsole({ email }: { email: string }) {
       !playerFee.trim() ||
       !bookingAmount.trim()
     ) {
-      setMessage("Complete every field before creating the game.");
+      setMessage("Complete every required field before creating the game.");
       return;
     }
 
@@ -260,6 +300,11 @@ export default function OwnerConsole({ email }: { email: string }) {
       return;
     }
 
+    if (!isGoogleMapsUrl(mapsUrl)) {
+      setMessage("Please enter a valid Google Maps link or leave it blank.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -274,10 +319,9 @@ export default function OwnerConsole({ email }: { email: string }) {
       }
 
       const resolvedTurfId = await resolveTurfId();
-
       if (!resolvedTurfId) return;
 
-      // Preserve the existing database RPC, including its booking logic.
+      // Keep the existing RPC and its venue-booking/payment logic unchanged.
       const { data, error } = await supabase.rpc("create_game", {
         p_turf_id: resolvedTurfId,
         p_host_user_id: user.id,
@@ -360,9 +404,7 @@ export default function OwnerConsole({ email }: { email: string }) {
 
       <header className="royal-topbar">
         <div className="royal-mini-brand">
-          <span className="royal-mini-crown" aria-hidden="true">
-            ♛
-          </span>
+          <span className="royal-mini-crown" aria-hidden="true">♛</span>
           <span>BOOTROOM</span>
           <span className="royal-owner-chip">OWNER</span>
         </div>
@@ -391,9 +433,7 @@ export default function OwnerConsole({ email }: { email: string }) {
         </p>
 
         <section className="royal-status-card">
-          <div className="royal-status-icon" aria-hidden="true">
-            ♛
-          </div>
+          <div className="royal-status-icon" aria-hidden="true">♛</div>
           <div>
             <div className="royal-kicker">AUTHENTICATED OWNER</div>
             <div className="royal-account">{email}</div>
@@ -415,9 +455,7 @@ export default function OwnerConsole({ email }: { email: string }) {
 
         <section className="royal-game-card">
           <div className="royal-card-heading">
-            <span className="royal-card-mark" aria-hidden="true">
-              ✦
-            </span>
+            <span className="royal-card-mark" aria-hidden="true">✦</span>
             <div>
               <div className="royal-kicker">MATCH SETUP</div>
               <h3>New football session</h3>
@@ -427,7 +465,6 @@ export default function OwnerConsole({ email }: { email: string }) {
           <label htmlFor="royal-turf">
             TURF NAME (TYPE OR SELECT SAVED TURF)
           </label>
-
           <input
             id="royal-turf"
             list="royal-turf-options"
@@ -450,9 +487,40 @@ export default function OwnerConsole({ email }: { email: string }) {
           </datalist>
 
           <p className="royal-form-note">
-            New turf names are saved for reuse. Enter date and time in Kolkata
-            time (IST).
+            Select a saved turf to reuse it. For a new turf, provide its
+            address or Google Maps link below. Game dates and times use IST.
           </p>
+
+          <div style={{ marginTop: 14 }}>
+            <label htmlFor="royal-address">VENUE ADDRESS</label>
+            <input
+              id="royal-address"
+              type="text"
+              value={venueAddress}
+              onChange={(event) => setVenueAddress(event.target.value)}
+              disabled={loading}
+              placeholder="Actual address, area, Kolkata"
+              autoComplete="street-address"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <label htmlFor="royal-maps">GOOGLE MAPS LINK</label>
+            <input
+              id="royal-maps"
+              type="url"
+              value={mapsUrl}
+              onChange={(event) => setMapsUrl(event.target.value)}
+              disabled={loading}
+              placeholder="https://maps.app.goo.gl/..."
+              autoComplete="url"
+              style={inputStyle}
+            />
+            <p className="royal-form-note">
+              Paste the link using Google Maps → Share → Copy link.
+            </p>
+          </div>
 
           <div className="royal-field-grid">
             <div>
