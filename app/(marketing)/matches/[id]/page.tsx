@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const TIME_ZONE = "Asia/Kolkata";
+
 type GamePageProps = {
   params: Promise<{ id: string }>;
 };
@@ -42,10 +44,15 @@ export default async function GamePage({ params }: GamePageProps) {
     throw new Error("Unable to load this game. Please try again.");
   }
 
-  if (!game) notFound();
+  if (!game) {
+    notFound();
+  }
 
+  // Database timestamps represent absolute instants.
+  // Format them in Kolkata time without changing the stored values.
   const start = new Date(game.slot_start);
   const end = new Date(game.slot_end);
+
   const capacity = Number(game.player_capacity);
   const playerFee = Number(game.player_fee);
   const bookingAmount =
@@ -64,16 +71,20 @@ export default async function GamePage({ params }: GamePageProps) {
     (bookingAmount !== null &&
       (!Number.isFinite(bookingAmount) ||
         bookingAmount <= 0 ||
-        bookingAmount > playerFee))
+        bookingAmount >= playerFee))
   ) {
     console.error("Invalid game configuration:", { gameId: id });
-    throw new Error("This game's schedule or booking information is invalid.");
+    throw new Error(
+      "This game's schedule or booking information is invalid."
+    );
   }
 
-  const { data: occupiedCount, error: countError } =
-    await supabase.rpc("get_combined_player_count", {
-      p_game_id: id,
-    });
+  const {
+    data: occupiedCount,
+    error: countError,
+  } = await supabase.rpc("get_combined_player_count", {
+    p_game_id: id,
+  });
 
   if (
     countError ||
@@ -94,24 +105,33 @@ export default async function GamePage({ params }: GamePageProps) {
 
   const occupiedPlayers = Number(occupiedCount);
   const spotsLeft = Math.max(capacity - occupiedPlayers, 0);
-  const isFull = game.status === "FULL" || occupiedPlayers >= capacity;
+  const isFull =
+    game.status === "FULL" || occupiedPlayers >= capacity;
+
   const isUpcoming = start.getTime() > Date.now();
-  const canJoin = !isFull && game.status === "OPEN" && isUpcoming;
+  const canJoin =
+    !isFull && game.status === "OPEN" && isUpcoming;
 
   const date = start.toLocaleDateString("en-IN", {
+    timeZone: TIME_ZONE,
     weekday: "long",
     day: "numeric",
     month: "long",
+    year: "numeric",
   });
 
   const startTime = start.toLocaleTimeString("en-IN", {
+    timeZone: TIME_ZONE,
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 
   const endTime = end.toLocaleTimeString("en-IN", {
+    timeZone: TIME_ZONE,
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 
   const turf = game.turfs as any;
@@ -134,7 +154,7 @@ export default async function GamePage({ params }: GamePageProps) {
         <div className="detailGrid">
           <div>
             <section className="panel">
-              <div className="label">GAME TIME</div>
+              <div className="label">GAME TIME · IST</div>
 
               <h2>{date}</h2>
 
@@ -161,7 +181,10 @@ export default async function GamePage({ params }: GamePageProps) {
               </p>
             </section>
 
-            <section className="panel" style={{ marginTop: 18 }}>
+            <section
+              className="panel"
+              style={{ marginTop: 18 }}
+            >
               <div className="label">LOCATION</div>
 
               <h3>
@@ -172,7 +195,7 @@ export default async function GamePage({ params }: GamePageProps) {
                 <a
                   className="btn"
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
                     venue.address
                   )}`}
