@@ -112,17 +112,20 @@ export default async function JoinGamePage({ params }: JoinPageProps) {
   const venue = turf?.venues as any;
 
   const date = start.toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
     weekday: "long",
     day: "numeric",
     month: "long",
   });
 
   const startTime = start.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
     hour: "numeric",
     minute: "2-digit",
   });
 
   const endTime = end.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
     hour: "numeric",
     minute: "2-digit",
   });
@@ -195,6 +198,7 @@ export default async function JoinGamePage({ params }: JoinPageProps) {
                     gameId={game.id}
                     amount={playerFee}
                     bookingAmount={bookingAmount}
+                    maxQuantity={spotsLeft}
                   />
                 </div>
 

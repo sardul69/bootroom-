@@ -10,6 +10,9 @@ type GamePayButtonProps = {
   gameId: string;
   amount: number;
   bookingAmount?: number | null;
+
+  // Pass the actual remaining slots for this game from the join page.
+  maxQuantity: number;
 };
 
 type JoinResponse = {
@@ -61,8 +64,15 @@ export default function GamePayButton({
   gameId,
   amount,
   bookingAmount,
+  maxQuantity,
 }: GamePayButtonProps) {
   const router = useRouter();
+
+  // Never allow the UI to offer more slots than the parent says are available.
+  const slotLimit =
+    Number.isSafeInteger(maxQuantity) && maxQuantity > 0
+      ? maxQuantity
+      : 0;
 
   const [quantity, setQuantity] = useState(1);
   const [paymentMode, setPaymentMode] =
@@ -117,23 +127,41 @@ export default function GamePayButton({
     });
   }
 
+  const validAmount =
+    Number.isFinite(amount) && amount > 0;
+
   const validBookingAmount =
     typeof bookingAmount === "number" &&
     Number.isFinite(bookingAmount) &&
     bookingAmount > 0 &&
+    validAmount &&
     bookingAmount < amount;
+
+  const validQuantity =
+    Number.isSafeInteger(quantity) &&
+    quantity >= 1 &&
+    quantity <= slotLimit;
+
+  const totalDue = validAmount
+    ? Math.round(amount * quantity * 100) / 100
+    : 0;
+
+  const payNow =
+    paymentMode === "PARTIAL" && validBookingAmount
+      ? Math.round(bookingAmount! * quantity * 100) / 100
+      : totalDue;
+
+  const remaining = Math.max(0, totalDue - payNow);
 
   async function startPayment() {
     if (loading) return;
 
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      !Number.isInteger(quantity) ||
-      quantity < 1 ||
-      quantity > 10
-    ) {
-      setMessage("Invalid player fee or number of slots.");
+    if (!validAmount || !validQuantity) {
+      setMessage(
+        slotLimit < 1
+          ? "No player slots are currently available."
+          : `Choose between 1 and ${slotLimit} available player slot(s).`
+      );
       return;
     }
 
@@ -192,6 +220,7 @@ export default function GamePayButton({
       );
 
       if (
+        joinData.quantity !== quantity ||
         joinData.paymentMode !== paymentMode ||
         !Number.isFinite(joinData.totalDue) ||
         !Number.isFinite(joinData.totalAmount) ||
@@ -246,7 +275,7 @@ export default function GamePayButton({
         currency: joinData.order.currency || "INR",
         name: "TURFZY",
         description: isBatch
-          ? `${joinData.quantity || quantity} player slot(s) — ${
+          ? `${quantity} player slot(s) — ${
               paymentMode === "PARTIAL"
                 ? "fixed booking amount"
                 : "full payment"
@@ -347,15 +376,6 @@ export default function GamePayButton({
       setLoading(false);
     }
   }
-
-  const totalDue = Math.round(amount * quantity * 100) / 100;
-
-  const payNow =
-    paymentMode === "PARTIAL" && validBookingAmount
-      ? Math.round(bookingAmount! * quantity * 100) / 100
-      : totalDue;
-
-  const remaining = Math.max(0, totalDue - payNow);
 
   const panelStyle = {
     boxSizing: "border-box" as const,
@@ -466,9 +486,9 @@ export default function GamePayButton({
                 fontSize: 13,
               }}
             >
-              {quantity === 1
-                ? "1 player selected"
-                : `${quantity} players selected`}
+              {slotLimit === 0
+                ? "No slots currently available"
+                : `${quantity} of ${slotLimit} available slots selected`}
             </p>
           </div>
 
@@ -516,15 +536,22 @@ export default function GamePayButton({
             <button
               type="button"
               aria-label="Add one player slot"
-              disabled={loading || quantity >= 10}
+              disabled={loading || slotLimit === 0 || quantity >= slotLimit}
               onClick={() =>
-                setQuantity((current) => Math.min(10, current + 1))
+                setQuantity((current) =>
+                  Math.min(slotLimit, current + 1)
+                )
               }
               style={{
                 ...slotButtonStyle,
-                opacity: quantity >= 10 || loading ? 0.4 : 1,
+                opacity:
+                  loading || slotLimit === 0 || quantity >= slotLimit
+                    ? 0.4
+                    : 1,
                 cursor:
-                  quantity >= 10 || loading ? "not-allowed" : "pointer",
+                  loading || slotLimit === 0 || quantity >= slotLimit
+                    ? "not-allowed"
+                    : "pointer",
               }}
             >
               +
@@ -686,6 +713,8 @@ export default function GamePayButton({
         onClick={startPayment}
         disabled={
           loading ||
+          !validAmount ||
+          !validQuantity ||
           (paymentMode === "PARTIAL" && !validBookingAmount)
         }
         style={{

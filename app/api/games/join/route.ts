@@ -188,10 +188,10 @@ export async function POST(req: Request) {
       typeof quantity !== "number" ||
       !Number.isInteger(quantity) ||
       quantity < 1 ||
-      quantity > 10
+      quantity > 30
     ) {
       return respond(
-        "Select between 1 and 10 player slots.",
+        "Select between 1 and 30 player slots.",
         400,
         "INVALID_QUANTITY",
         requestId
@@ -265,6 +265,33 @@ export async function POST(req: Request) {
         404,
         "GAME_NOT_FOUND",
         requestId
+      );
+    }
+
+    const configuredCapacity = Number(game.player_capacity);
+
+    if (
+      !Number.isSafeInteger(configuredCapacity) ||
+      configuredCapacity < 2 ||
+      configuredCapacity > 30
+    ) {
+      logFailure("INVALID_GAME_CAPACITY", requestId, undefined, { gameId });
+
+      return respond(
+        "This game's player capacity is invalid. Please contact support.",
+        500,
+        "INVALID_GAME_CAPACITY",
+        requestId
+      );
+    }
+
+    if (quantity > configuredCapacity) {
+      return respond(
+        `This game allows a maximum of ${configuredCapacity} players per booking.`,
+        400,
+        "QUANTITY_EXCEEDS_CAPACITY",
+        requestId,
+        { maxQuantity: configuredCapacity }
       );
     }
 
