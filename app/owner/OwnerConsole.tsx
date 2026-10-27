@@ -24,12 +24,60 @@ const confetti = Array.from({ length: 72 }, (_, i) => ({
   color: ["#e7c879", "#f8f1d9", "#5cf58e", "#c8a4ff", "#ff9dba"][i % 5],
 }));
 
+// Strictly interpret YYYY-MM-DD HH:MM as Indian Standard Time.
+// This does not depend on the browser/device timezone.
+function parseIstDateTime(value: string): Date | null {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(value.trim());
+
+  if (!match) return null;
+
+  const [, ys, mos, ds, hs, mis] = match;
+  const year = Number(ys);
+  const month = Number(mos);
+  const day = Number(ds);
+  const hour = Number(hs);
+  const minute = Number(mis);
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  const calendarCheck = new Date(
+    Date.UTC(year, month - 1, day, hour, minute)
+  );
+
+  if (
+    calendarCheck.getUTCFullYear() !== year ||
+    calendarCheck.getUTCMonth() !== month - 1 ||
+    calendarCheck.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  const result = new Date(
+    `${ys}-${mos}-${ds}T${hs}:${mis}:00+05:30`
+  );
+
+  return Number.isNaN(result.getTime()) ? null : result;
+}
+
 export default function OwnerConsole({ email }: { email: string }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
   const [turfs, setTurfs] = useState<Turf[]>([]);
   const [turfId, setTurfId] = useState("");
+  const [turfName, setTurfName] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [capacity, setCapacity] = useState("10");
@@ -55,7 +103,8 @@ export default function OwnerConsole({ email }: { email: string }) {
       if (error) {
         setMessage("Could not load turfs. " + error.message);
       } else {
-        setTurfs((data ?? []) as Turf[]);
+        const loaded = (data ?? []) as Turf[];
+        setTurfs(loaded);
       }
 
       setLoadingTurfs(false);
@@ -71,19 +120,93 @@ export default function OwnerConsole({ email }: { email: string }) {
     };
   }, [supabase]);
 
+  function handleTurfNameChange(value: string) {
+    setTurfName(value);
+
+    const matchingTurf = turfs.find(
+      (turf) =>
+        turf.name.trim().toLowerCase() === value.trim().toLowerCase()
+    );
+
+    setTurfId(matchingTurf?.id ?? "");
+  }
+
+  async function resolveTurfId(): Promise<string | null> {
+    const cleanName = turfName.trim();
+
+    if (!cleanName) {
+      setMessage("Enter a turf name.");
+      return null;
+    }
+
+    const existingTurf = turfs.find(
+      (turf) => turf.name.trim().toLowerCase() === cleanName.toLowerCase()
+    );
+
+    if (existingTurf) {
+      setTurfId(existingTurf.id);
+      return existingTurf.id;
+    }
+
+    // New turf records must be created by the protected server endpoint.
+    const response = await fetch("/api/owner/access/operations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        action: "create-turf",
+        name: cleanName,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || typeof result.id !== "string") {
+      setMessage(result.error || "Could not save this turf.");
+      return null;
+    }
+
+    const savedTurf: Turf = {
+      id: result.id,
+      name: result.name || cleanName,
+      venues: [
+        {
+          name: result.name || cleanName,
+          locality: "Kolkata",
+        },
+      ],
+    };
+
+    setTurfs((current) => {
+      const alreadyAdded = current.some((turf) => turf.id === savedTurf.id);
+      if (alreadyAdded) return current;
+
+      return [...current, savedTurf].sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+    });
+
+    setTurfName(savedTurf.name);
+    setTurfId(savedTurf.id);
+
+    return savedTurf.id;
+  }
+
   async function createGame() {
     setMessage("");
 
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    const startDate = parseIstDateTime(start);
+    const endDate = parseIstDateTime(end);
     const fee = Number(playerFee);
     const bookingFee = Number(bookingAmount);
     const seats = Number(capacity);
 
     if (
-      !turfId ||
-      !start ||
-      !end ||
+      !turfName.trim() ||
+      !start.trim() ||
+      !end.trim() ||
       !playerFee.trim() ||
       !bookingAmount.trim()
     ) {
@@ -91,11 +214,14 @@ export default function OwnerConsole({ email }: { email: string }) {
       return;
     }
 
-    if (
-      !Number.isFinite(startDate.getTime()) ||
-      !Number.isFinite(endDate.getTime()) ||
-      endDate <= startDate
-    ) {
+    if (!startDate || !endDate) {
+      setMessage(
+        "Enter valid dates as YYYY-MM-DD HH:MM using Indian Standard Time."
+      );
+      return;
+    }
+
+    if (endDate <= startDate) {
       setMessage("The end time must be later than the start time.");
       return;
     }
@@ -147,8 +273,13 @@ export default function OwnerConsole({ email }: { email: string }) {
         return;
       }
 
+      const resolvedTurfId = await resolveTurfId();
+
+      if (!resolvedTurfId) return;
+
+      // Preserve the existing database RPC, including its booking logic.
       const { data, error } = await supabase.rpc("create_game", {
-        p_turf_id: turfId,
+        p_turf_id: resolvedTurfId,
         p_host_user_id: user.id,
         p_start: startDate.toISOString(),
         p_end: endDate.toISOString(),
@@ -229,7 +360,9 @@ export default function OwnerConsole({ email }: { email: string }) {
 
       <header className="royal-topbar">
         <div className="royal-mini-brand">
-          <span className="royal-mini-crown" aria-hidden="true">♛</span>
+          <span className="royal-mini-crown" aria-hidden="true">
+            ♛
+          </span>
           <span>BOOTROOM</span>
           <span className="royal-owner-chip">OWNER</span>
         </div>
@@ -258,7 +391,9 @@ export default function OwnerConsole({ email }: { email: string }) {
         </p>
 
         <section className="royal-status-card">
-          <div className="royal-status-icon" aria-hidden="true">♛</div>
+          <div className="royal-status-icon" aria-hidden="true">
+            ♛
+          </div>
           <div>
             <div className="royal-kicker">AUTHENTICATED OWNER</div>
             <div className="royal-account">{email}</div>
@@ -280,51 +415,69 @@ export default function OwnerConsole({ email }: { email: string }) {
 
         <section className="royal-game-card">
           <div className="royal-card-heading">
-            <span className="royal-card-mark" aria-hidden="true">✦</span>
+            <span className="royal-card-mark" aria-hidden="true">
+              ✦
+            </span>
             <div>
               <div className="royal-kicker">MATCH SETUP</div>
               <h3>New football session</h3>
             </div>
           </div>
 
-          <label htmlFor="royal-turf">SELECT TURF</label>
-          <select
+          <label htmlFor="royal-turf">
+            TURF NAME (TYPE OR SELECT SAVED TURF)
+          </label>
+
+          <input
             id="royal-turf"
-            value={turfId}
-            onChange={(event) => setTurfId(event.target.value)}
+            list="royal-turf-options"
+            value={turfName}
+            onChange={(event) => handleTurfNameChange(event.target.value)}
             disabled={loadingTurfs || loading}
+            placeholder={
+              loadingTurfs
+                ? "Loading saved turfs…"
+                : "Type a turf name or choose a saved one"
+            }
+            autoComplete="off"
             style={inputStyle}
-          >
-            <option value="">
-              {loadingTurfs ? "Loading turfs…" : "Choose a turf"}
-            </option>
+          />
+
+          <datalist id="royal-turf-options">
             {turfs.map((turf) => (
-              <option key={turf.id} value={turf.id}>
-                {turf.name}
-                {turf.venues?.[0]?.locality
-                  ? ` — ${turf.venues[0].locality}`
-                  : ""}
-              </option>
+              <option key={turf.id} value={turf.name} />
             ))}
-          </select>
+          </datalist>
+
+          <p className="royal-form-note">
+            New turf names are saved for reuse. Enter date and time in Kolkata
+            time (IST).
+          </p>
 
           <div className="royal-field-grid">
             <div>
-              <label htmlFor="royal-start">START DATE &amp; TIME</label>
+              <label htmlFor="royal-start">START DATE &amp; TIME (IST)</label>
               <input
                 id="royal-start"
-                type="datetime-local"
+                type="text"
+                inputMode="text"
+                autoComplete="off"
+                placeholder="YYYY-MM-DD HH:MM"
                 value={start}
                 onChange={(event) => setStart(event.target.value)}
                 disabled={loading}
                 style={inputStyle}
               />
             </div>
+
             <div>
-              <label htmlFor="royal-end">END DATE &amp; TIME</label>
+              <label htmlFor="royal-end">END DATE &amp; TIME (IST)</label>
               <input
                 id="royal-end"
-                type="datetime-local"
+                type="text"
+                inputMode="text"
+                autoComplete="off"
+                placeholder="YYYY-MM-DD HH:MM"
                 value={end}
                 onChange={(event) => setEnd(event.target.value)}
                 disabled={loading}
@@ -332,6 +485,11 @@ export default function OwnerConsole({ email }: { email: string }) {
               />
             </div>
           </div>
+
+          <p className="royal-form-note">
+            Example: 2026-11-08 18:30 means 6:30 PM in India, regardless of
+            your device timezone.
+          </p>
 
           <div className="royal-field-grid">
             <div>
@@ -348,6 +506,7 @@ export default function OwnerConsole({ email }: { email: string }) {
                 style={inputStyle}
               />
             </div>
+
             <div>
               <label htmlFor="royal-fee">FULL FEE PER PLAYER (₹)</label>
               <input
