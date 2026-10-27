@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
@@ -36,13 +37,8 @@ function sameOrigin(request: NextRequest) {
 }
 
 async function authorize(request: NextRequest) {
-  if (
-    request.method !== "GET" &&
-    !sameOrigin(request)
-  ) {
-    return {
-      error: json({ error: "Request rejected." }, 403),
-    }
+  if (request.method !== "GET" && !sameOrigin(request)) {
+    return { error: json({ error: "Request rejected." }, 403) };
   }
 
   const supabase = await createClient();
@@ -53,9 +49,7 @@ async function authorize(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    return {
-      error: json({ error: "Please sign in again." }, 401),
-    };
+    return { error: json({ error: "Please sign in again." }, 401) };
   }
 
   const { data: isOwner, error: ownerError } =
@@ -82,6 +76,40 @@ async function authorize(request: NextRequest) {
   return { user };
 }
 
+/**
+ * Fetch every player profile in pages rather than silently stopping at 300.
+ * A stable secondary order prevents records with matching names from being
+ * skipped between pages.
+ */
+async function fetchAllPlayers(admin: ReturnType<typeof createAdminClient>) {
+  const pageSize = 1000;
+  const allPlayers: Record<string, unknown>[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await admin
+      .from("profiles")
+      .select(
+        "id,full_name,phone,locality,position,skill,preferred_foot,player_cards(overall_rating,pace,shooting,passing,dribbling,defending,physical,attack,composure,appearances,goals,assists,average_rating,is_verified)"
+      )
+      .order("full_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    const page = data ?? [];
+    allPlayers.push(...page);
+
+    if (page.length < pageSize) {
+      break;
+    }
+  }
+
+  return { data: allPlayers, error: null };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await authorize(request);
@@ -99,13 +127,7 @@ export async function GET(request: NextRequest) {
           .order("slot_start", { ascending: false })
           .limit(100),
 
-        admin
-          .from("profiles")
-          .select(
-            "id,full_name,phone,locality,position,skill,preferred_foot,player_cards(overall_rating,pace,shooting,passing,dribbling,defending,physical,attack,composure,appearances,goals,assists,average_rating,is_verified)"
-          )
-          .order("full_name")
-          .limit(300),
+        fetchAllPlayers(admin),
 
         admin
           .from("turf_suggestions")
@@ -123,7 +145,9 @@ export async function GET(request: NextRequest) {
 
         admin
           .from("game_payments")
-          .select("id,amount,status,provider_payment_id,created_at,game_player_id")
+          .select(
+            "id,amount,status,provider_payment_id,created_at,game_player_id"
+          )
           .eq("status", "CAPTURED")
           .limit(1000),
       ]);
@@ -136,7 +160,10 @@ export async function GET(request: NextRequest) {
       });
 
       return json(
-        { error: "Unable to load dashboard records. Check server logs." },
+        {
+          error:
+            "Unable to load dashboard records. Check server logs.",
+        },
         500
       );
     }
@@ -148,7 +175,10 @@ export async function GET(request: NextRequest) {
       });
 
       return json(
-        { error: "Unable to verify payment totals. No finance figures displayed." },
+        {
+          error:
+            "Unable to verify payment totals. No finance figures displayed.",
+        },
         500
       );
     }
@@ -174,7 +204,10 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Owner dashboard GET failed", error);
-    return json({ error: "Unable to load Owner Console operations." }, 500);
+    return json(
+      { error: "Unable to load Owner Console operations." },
+      500
+    );
   }
 }
 
@@ -193,11 +226,113 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => null);
 
-    if (!body || typeof body !== "object") {
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
       return json({ error: "Invalid request." }, 400);
     }
 
     const admin = createAdminClient();
+
+    // Create a reusable turf from a manually entered name.
+    if (body.action === "create-turf") {
+      const name =
+        typeof body.name === "string" ? body.name.trim() : "";
+
+      if (name.length < 2 || name.length > 120) {
+        return json(
+          { error: "Enter a turf name between 2 and 120 characters." },
+          400
+        );
+      }
+
+      // Reuse a matching name instead of creating duplicate listings.
+      const { data: matchingTurfs, error: lookupError } = await admin
+        .from("turfs")
+        .select("id,name")
+        .ilike("name", name)
+        .limit(100);
+
+      if (lookupError) {
+        console.error("Turf lookup failed:", lookupError.message);
+        return json(
+          { error: "Could not check existing turfs." },
+          500
+        );
+      }
+
+      const existing = (matchingTurfs ?? []).find(
+        (turf) =>
+          turf.name.trim().toLowerCase() === name.toLowerCase()
+      );
+
+      if (existing) {
+        return json({ id: existing.id, name: existing.name });
+      }
+
+      // A manually entered name does not verify the real-world location.
+      const { data: venue, error: venueError } = await admin
+        .from("venues")
+        .insert({
+          owner_id: auth.user.id,
+          name,
+          locality: "Kolkata",
+          address: name,
+          verified: false,
+          active: true,
+        })
+        .select("id")
+        .single();
+
+      if (venueError || !venue) {
+        console.error(
+          "Venue creation failed:",
+          venueError?.message
+        );
+        return json(
+          { error: "Could not create the venue record." },
+          500
+        );
+      }
+
+      const { data: turf, error: turfError } = await admin
+        .from("turfs")
+        .insert({
+          venue_id: venue.id,
+          name,
+          format: "5-a-side",
+          surface: "artificial",
+          active: true,
+        })
+        .select("id,name")
+        .single();
+
+      if (turfError || !turf) {
+        console.error(
+          "Turf creation failed:",
+          turfError?.message
+        );
+
+        // Clean up the venue created by this request.
+        const { error: cleanupError } = await admin
+          .from("venues")
+          .delete()
+          .eq("id", venue.id);
+
+        if (cleanupError) {
+          console.error(
+            "Venue cleanup failed:",
+            cleanupError.message
+          );
+        }
+
+        return json(
+          { error: "Could not save the new turf." },
+          500
+        );
+      }
+
+      // OwnerConsole.tsx expects id and name at the top level.
+      return json({ id: turf.id, name: turf.name });
+    }
 
     // Cancel without deleting payment or booking history.
     if (body.action === "cancel-game") {
@@ -216,7 +351,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (game.status === "CANCELLED") {
-        return json({ ok: true, message: "Game is already cancelled." });
+        return json({
+          ok: true,
+          message: "Game is already cancelled.",
+        });
       }
 
       if (game.status === "COMPLETED") {
@@ -236,7 +374,10 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error("Game cancellation failed", error.message);
-        return json({ error: "Could not cancel this game." }, 500);
+        return json(
+          { error: "Could not cancel this game." },
+          500
+        );
       }
 
       return json({
@@ -272,19 +413,25 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { data: linkedPlayers, error: playersError } = await admin
-        .from("game_players")
-        .select("id")
-        .eq("game_id", id);
+      const { data: linkedPlayers, error: playersError } =
+        await admin
+          .from("game_players")
+          .select("id")
+          .eq("game_id", id);
 
       if (playersError) {
         return json(
-          { error: "Could not verify player records. Deletion blocked." },
+          {
+            error:
+              "Could not verify player records. Deletion blocked.",
+          },
           500
         );
       }
 
-      const playerIds = (linkedPlayers ?? []).map((row) => row.id);
+      const playerIds = (linkedPlayers ?? []).map(
+        (row) => row.id
+      );
 
       const checks = await Promise.all([
         admin
@@ -322,7 +469,10 @@ export async function POST(request: NextRequest) {
 
       if (checks.some((check) => check.error)) {
         return json(
-          { error: "Could not verify all linked records. Deletion blocked." },
+          {
+            error:
+              "Could not verify all linked records. Deletion blocked.",
+          },
           500
         );
       }
@@ -346,7 +496,10 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error("Game deletion failed", error.message);
         return json(
-          { error: "Database rejected deletion. The game was not removed." },
+          {
+            error:
+              "Database rejected deletion. The game was not removed.",
+          },
           409
         );
       }
@@ -362,7 +515,11 @@ export async function POST(request: NextRequest) {
       const id = typeof body.id === "string" ? body.id : "";
       const status = body.status;
 
-      if (!id || !["APPROVED", "REJECTED", "NEW"].includes(status)) {
+      if (
+        !id ||
+        typeof status !== "string" ||
+        !["APPROVED", "REJECTED", "NEW"].includes(status)
+      ) {
         return json(
           { error: "Valid suggestion ID and status required." },
           400
@@ -376,7 +533,10 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error("Suggestion review failed", error.message);
-        return json({ error: "Could not update this suggestion." }, 500);
+        return json(
+          { error: "Could not update this suggestion." },
+          500
+        );
       }
 
       return json({
@@ -391,7 +551,10 @@ export async function POST(request: NextRequest) {
         typeof body.profileId === "string" ? body.profileId : "";
 
       if (!profileId) {
-        return json({ error: "Player profile ID required." }, 400);
+        return json(
+          { error: "Player profile ID required." },
+          400
+        );
       }
 
       const fields = [
@@ -415,43 +578,70 @@ export async function POST(request: NextRequest) {
         if (body[field] === undefined) continue;
 
         const value = Number(body[field]);
-        const max =
-          ["appearances", "goals", "assists"].includes(field)
-            ? 1000000
-            : 99;
+        const max = [
+          "appearances",
+          "goals",
+          "assists",
+        ].includes(field)
+          ? 1000000
+          : 99;
 
-        if (!Number.isInteger(value) || value < 0 || value > max) {
-          return json({ error: `Invalid value for ${field}.` }, 400);
+        if (
+          !Number.isInteger(value) ||
+          value < 0 ||
+          value > max
+        ) {
+          return json(
+            { error: `Invalid value for ${field}.` },
+            400
+          );
         }
 
         update[field] = value;
       }
 
       if (!Object.keys(update).length) {
-        return json({ error: "No player-card fields supplied." }, 400);
+        return json(
+          { error: "No player-card fields supplied." },
+          400
+        );
       }
 
-      const { error } = await admin.from("player_cards").upsert(
-        {
-          profile_id: profileId,
-          ...update,
-          is_verified: body.is_verified === true,
-          updated_by: auth.user.id,
-        },
-        { onConflict: "profile_id" }
-      );
+      const { error } = await admin
+        .from("player_cards")
+        .upsert(
+          {
+            profile_id: profileId,
+            ...update,
+            is_verified: body.is_verified === true,
+            updated_by: auth.user.id,
+          },
+          { onConflict: "profile_id" }
+        );
 
       if (error) {
-        console.error("Player card update failed", error.message);
-        return json({ error: "Could not update the player card." }, 500);
+        console.error(
+          "Player card update failed",
+          error.message
+        );
+        return json(
+          { error: "Could not update the player card." },
+          500
+        );
       }
 
-      return json({ ok: true, message: "Player card saved." });
+      return json({
+        ok: true,
+        message: "Player card saved.",
+      });
     }
 
     return json({ error: "Unknown operation." }, 400);
   } catch (error) {
     console.error("Owner operations POST failed", error);
-    return json({ error: "Unable to complete Owner Console action." }, 500);
+    return json(
+      { error: "Unable to complete Owner Console action." },
+      500
+    );
   }
 }
