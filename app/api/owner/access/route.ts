@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { Ratelimit } from "@upstash/ratelimit";
@@ -74,20 +75,13 @@ function createOwnerRateLimiter() {
 export async function POST(request: NextRequest) {
   try {
     if (!isSameOrigin(request)) {
-      return jsonResponse(
-        { error: "Request rejected." },
-        403,
-      );
+      return jsonResponse({ error: "Request rejected." }, 403);
     }
 
     const contentType =
       request.headers.get("content-type") ?? "";
 
-    if (
-      !contentType
-        .toLowerCase()
-        .includes("application/json")
-    ) {
+    if (!contentType.toLowerCase().includes("application/json")) {
       return jsonResponse(
         { error: "Unsupported request format." },
         415,
@@ -108,7 +102,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the authenticated BOOTROOM account first.
+    // Verify the authenticated BOOTROOM account.
     const supabase = await createClient();
 
     const {
@@ -118,15 +112,12 @@ export async function POST(request: NextRequest) {
 
     if (authError || !user) {
       return jsonResponse(
-        {
-          error:
-            "Sign in to your BOOTROOM account first.",
-        },
+        { error: "Sign in to your BOOTROOM account first." },
         401,
       );
     }
 
-    // Confirm that this authenticated account is an Owner.
+    // Verify owner privileges independently.
     const {
       data: isOwner,
       error: ownerError,
@@ -134,26 +125,18 @@ export async function POST(request: NextRequest) {
 
     if (ownerError || isOwner !== true) {
       return jsonResponse(
-        {
-          error:
-            "This account does not have Owner privileges.",
-        },
+        { error: "This account does not have Owner privileges." },
         403,
       );
     }
 
-    // Fail closed if the shared rate limiter is unavailable.
+    // Rate-limit unlock attempts.
     let rateLimit;
 
     try {
-      rateLimit = await createOwnerRateLimiter().limit(
-        user.id,
-      );
+      rateLimit = await createOwnerRateLimiter().limit(user.id);
     } catch (error) {
-      console.error(
-        "Owner rate limiter unavailable:",
-        error,
-      );
+      console.error("Owner rate limiter unavailable:", error);
 
       return jsonResponse(
         {
@@ -167,9 +150,7 @@ export async function POST(request: NextRequest) {
     if (!rateLimit.success) {
       const retryAfter = Math.max(
         1,
-        Math.ceil(
-          (rateLimit.reset - Date.now()) / 1000,
-        ),
+        Math.ceil((rateLimit.reset - Date.now()) / 1000),
       );
 
       const response = jsonResponse(
@@ -180,10 +161,7 @@ export async function POST(request: NextRequest) {
         429,
       );
 
-      response.headers.set(
-        "Retry-After",
-        String(retryAfter),
-      );
+      response.headers.set("Retry-After", String(retryAfter));
 
       return response;
     }
@@ -196,17 +174,12 @@ export async function POST(request: NextRequest) {
       expectedPassword.length < 16
     ) {
       return jsonResponse(
-        {
-          error:
-            "Owner access is not configured correctly.",
-        },
+        { error: "Owner access is not configured correctly." },
         503,
       );
     }
 
-    const body = await request
-      .json()
-      .catch(() => null);
+    const body = await request.json().catch(() => null);
 
     const password =
       typeof body?.password === "string"
@@ -219,15 +192,12 @@ export async function POST(request: NextRequest) {
       !constantTimeMatch(password, expectedPassword)
     ) {
       return jsonResponse(
-        {
-          error:
-            "Access denied. Check your password and try again.",
-        },
+        { error: "Access denied. Check your password and try again." },
         401,
       );
     }
 
-    // Issue a signed, short-lived, HTTP-only session.
+    // Issue the signed, short-lived Owner session.
     const session = issueOwnerSession(user.id);
 
     const response = jsonResponse({ ok: true });
@@ -239,7 +209,10 @@ export async function POST(request: NextRequest) {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-        path: "/owner",
+
+        // FIX: Make the cookie available to /owner and /api/owner.
+        path: "/",
+
         maxAge: session.maxAge,
       },
     );
@@ -261,10 +234,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     if (!isSameOrigin(request)) {
-      return jsonResponse(
-        { error: "Request rejected." },
-        403,
-      );
+      return jsonResponse({ error: "Request rejected." }, 403);
     }
 
     const response = jsonResponse({ ok: true });
@@ -276,7 +246,10 @@ export async function DELETE(request: NextRequest) {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-        path: "/owner",
+
+        // Must match the path used when creating the cookie.
+        path: "/",
+
         maxAge: 0,
       },
     );
