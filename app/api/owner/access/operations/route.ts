@@ -404,53 +404,54 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Cancel without deleting payment or booking history.
+    // Cancel the game and release its linked booking atomically.
+    // Requires the cancel_game_and_release_booking SQL RPC migration.
     if (body.action === "cancel-game") {
       const id = typeof body.id === "string" ? body.id : "";
 
       if (!id) return json({ error: "Game ID required." }, 400);
 
-      const { data: game, error: readError } = await admin
-        .from("games")
-        .select("id,status")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (readError || !game) {
-        return json({ error: "Game not found." }, 404);
-      }
-
-      if (game.status === "CANCELLED") {
-        return json({
-          ok: true,
-          message: "Game is already cancelled.",
-        });
-      }
-
-      if (game.status === "COMPLETED") {
-        return json(
-          { error: "Completed games cannot be cancelled here." },
-          409
-        );
-      }
-
-      const { error } = await admin
-        .from("games")
-        .update({
-          status: "CANCELLED",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const { data, error } = await admin.rpc(
+        "cancel_game_and_release_booking",
+        { p_game_id: id }
+      );
 
       if (error) {
         console.error("Game cancellation failed", error.message);
-        return json({ error: "Could not cancel this game." }, 500);
+
+        if (error.message.includes("Game not found")) {
+          return json({ error: "Game not found." }, 404);
+        }
+
+        if (
+          error.message.includes(
+            "Completed games cannot be cancelled here"
+          )
+        ) {
+          return json(
+            { error: "Completed games cannot be cancelled here." },
+            409
+          );
+        }
+
+        if (error.message.includes("Not authorized")) {
+          return json({ error: "Request rejected." }, 403);
+        }
+
+        return json(
+          {
+            error:
+              "Could not cancel this game and release its booking. Ensure the database migration has been applied.",
+          },
+          500
+        );
       }
 
       return json({
         ok: true,
         message:
-          "Game cancelled. Payment records were preserved. This action does not issue refunds.",
+          data?.message ??
+          "Game cancelled and linked booking released. Payment history preserved; no refund issued.",
       });
     }
 
