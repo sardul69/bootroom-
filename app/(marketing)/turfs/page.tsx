@@ -64,6 +64,14 @@ const EMPTY_SUGGESTION: Suggestion = {
   details: "",
 };
 
+// Real football photography. These are visual backgrounds only;
+// the venue information itself always comes from your database.
+const FOOTBALL_IMAGES = [
+  "https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1400&q=85",
+  "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1400&q=85",
+  "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1400&q=85",
+];
+
 function mapsSearch(name: string, locality: string) {
   const query = `${name} football turf ${locality} Kolkata`;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -105,8 +113,7 @@ export default function TurfsPage() {
   );
   const [locationMessage, setLocationMessage] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
-  const [suggestion, setSuggestion] =
-    useState<Suggestion>(EMPTY_SUGGESTION);
+  const [suggestion, setSuggestion] = useState<Suggestion>(EMPTY_SUGGESTION);
   const [suggestBusy, setSuggestBusy] = useState(false);
   const [suggestMessage, setSuggestMessage] = useState("");
 
@@ -117,7 +124,7 @@ export default function TurfsPage() {
       setLoading(true);
       setLoadError("");
 
-      // Public Turf pages must never fetch or display rental prices.
+      // Never retrieve rental prices on the public discovery page.
       const { data, error } = await supabase
         .from("turfs")
         .select(
@@ -185,33 +192,9 @@ export default function TurfsPage() {
   const filteredLeads = useMemo(() => {
     if (!query) return [];
 
-    const specificLocalities = [
-      "garia",
-      "tollygunge",
-      "tolly",
-      "topsia",
-      "kasba",
-      "salt lake",
-      "new town",
-      "narendrapur",
-      "elgin",
-    ];
-
-    const specific = specificLocalities.find((locality) =>
-      query.includes(locality),
-    );
-
     return RESEARCH_LEADS.filter((lead) => {
       const text = `${lead.name} ${lead.locality}`.toLowerCase();
-
-      if (specific && lead.locality.toLowerCase() === "kolkata") {
-        return false;
-      }
-
-      return (
-        text.includes(query) ||
-        lead.locality.toLowerCase().includes(query)
-      );
+      return text.includes(query);
     });
   }, [query]);
 
@@ -285,158 +268,193 @@ export default function TurfsPage() {
   }
 
   return (
-    <main className="forest-page">
-      {/* This is the actual photograph, not a CSS forest illustration. */}
-      <div className="forest-scene" aria-hidden="true" />
+    <main className="find-page">
+      <div className="ambient-glow" aria-hidden="true" />
 
-      <div className="forest-content">
-        <section className="hero">
-          <div className="eyebrow">
-            <span /> THE GROUNDS OF THE GAME <span />
+      {/* HERO */}
+      <section className="hero">
+        <div className="hero-photo" aria-hidden="true" />
+        <div className="hero-shade" aria-hidden="true" />
+
+        <div className="hero-inner">
+          <div className="top-label">
+            <span className="live-dot" />
+            KOLKATA FOOTBALL NETWORK
           </div>
 
-          <p className="pretitle">YOUR NEXT CHAPTER STARTS HERE</p>
+          <div className="hero-copy">
+            <p className="hero-kicker">THE GAME STARTS HERE</p>
 
-          <h1>
-            FIND YOUR
-            <br />
-            <em>NEXT GROUND.</em>
-          </h1>
+            <h1>
+              FIND YOUR
+              <br />
+              <span>GROUND.</span>
+            </h1>
 
-          <p className="hero-copy">
-            A better pitch. A better matchday. A football community that feels
-            like home.
-          </p>
-
-          <div className="mantra">
-            <span>DISCOVER</span>
-            <i />
-            <span>PLAY</span>
-            <i />
-            <span>BELONG</span>
-          </div>
-        </section>
-
-        <section className="search-panel">
-          <div className="panel-heading">
-            THE GROUND FINDER <span>✦</span>
-          </div>
-
-          <form
-            className="search-row"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setSearch((value) => value.trim());
-            }}
-          >
-            <label className="search-box">
-              <span aria-hidden="true">⌕</span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search city, locality or PIN code…"
-                aria-label="Search city, locality or PIN code"
-              />
-
-              {search && (
-                <button
-                  type="button"
-                  className="clear-search"
-                  onClick={() => setSearch("")}
-                  aria-label="Clear search"
-                >
-                  ×
-                </button>
-              )}
-            </label>
-
-            <button
-              type="button"
-              className="location-button"
-              onClick={useMyLocation}
-            >
-              <span>⌖</span> USE MY LOCATION
-            </button>
-          </form>
-
-          <div className="filters">
-            <label className="select-filter">
-              <span>FORMAT</span>
-              <select
-                value={format}
-                onChange={(event) => setFormat(event.target.value)}
-              >
-                <option value="ALL">All formats</option>
-                {["5v5", "6v6", "7v7", "8v8", "11v11"].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="select-filter">
-              <span>SURFACE</span>
-              <select
-                value={surface}
-                onChange={(event) => setSurface(event.target.value)}
-              >
-                <option value="ALL">All surfaces</option>
-                {[
-                  "Artificial Grass",
-                  "Natural Grass",
-                  "Astro Turf",
-                  "Indoor",
-                ].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="check-filter">
-              <input
-                type="checkbox"
-                checked={indoorOnly}
-                onChange={(event) => setIndoorOnly(event.target.checked)}
-              />
-              INDOOR
-            </label>
-
-            <label className="check-filter">
-              <input
-                type="checkbox"
-                checked={lightsOnly}
-                onChange={(event) => setLightsOnly(event.target.checked)}
-              />
-              FLOODLIGHTS
-            </label>
-          </div>
-
-          {locationMessage && (
-            <p className="status-message" role="status">
-              {locationMessage}
+            <p className="hero-description">
+              Discover the pitches. Find your people.
+              <br className="desktop-break" />
+              Make every matchday count.
             </p>
-          )}
-        </section>
 
-        <section className="results-section">
-          <div className="results-heading">
+            <a className="hero-cta" href="#ground-finder">
+              EXPLORE GROUNDS <span>↘</span>
+            </a>
+          </div>
+
+          <div className="hero-bottom">
+            <span>01 — DISCOVER</span>
+            <span className="hero-bottom-line" />
+            <span>02 — PLAY</span>
+            <span className="hero-bottom-line" />
+            <span>03 — BELONG</span>
+          </div>
+        </div>
+
+        <div className="hero-side-label">BOOTROOM / GROUND NETWORK</div>
+      </section>
+
+      <div className="content-shell">
+        {/* SEARCH */}
+        <section className="finder-section" id="ground-finder">
+          <div className="section-overline">
+            <span className="section-number">01</span>
+            <span>THE GROUND FINDER</span>
+            <span className="overline-rule" />
+            <span className="overline-city">KOLKATA, INDIA</span>
+          </div>
+
+          <div className="finder-heading">
             <div>
-              <div className="eyebrow">VERIFIED GROUNDS</div>
-              <h2>Curated for players.</h2>
+              <h2>Where are we<br />playing?</h2>
+              <p>Find a ground that matches your game.</p>
             </div>
 
-            <p className="trust-line">
-              TRUSTED <i /> VERIFIED <i /> COMMUNITY-LED
+            <div className="finder-count">
+              <strong>{loading ? "—" : filteredTurfs.length.toString().padStart(2, "0")}</strong>
+              <span>VERIFIED<br />GROUNDS</span>
+            </div>
+          </div>
+
+          <div className="finder-box">
+            <form
+              className="search-row"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSearch((value) => value.trim());
+              }}
+            >
+              <label className="search-input-wrap">
+                <span className="search-icon">⌕</span>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by ground, locality or PIN code..."
+                  aria-label="Search by ground, locality or PIN code"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    className="clear-button"
+                    onClick={() => setSearch("")}
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                )}
+              </label>
+
+              <button
+                type="button"
+                className="location-button"
+                onClick={useMyLocation}
+              >
+                <span>◎</span> NEAR ME
+              </button>
+            </form>
+
+            <div className="filter-row">
+              <label className="filter-control">
+                <span>FORMAT</span>
+                <select
+                  value={format}
+                  onChange={(event) => setFormat(event.target.value)}
+                >
+                  <option value="ALL">All formats</option>
+                  {["5v5", "6v6", "7v7", "8v8", "11v11"].map((value) => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="filter-control">
+                <span>SURFACE</span>
+                <select
+                  value={surface}
+                  onChange={(event) => setSurface(event.target.value)}
+                >
+                  <option value="ALL">All surfaces</option>
+                  {["Artificial Grass", "Natural Grass", "Astro Turf", "Indoor"].map((value) => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="toggle-filter">
+                <input
+                  type="checkbox"
+                  checked={indoorOnly}
+                  onChange={(event) => setIndoorOnly(event.target.checked)}
+                />
+                <span className="toggle-track" />
+                INDOOR
+              </label>
+
+              <label className="toggle-filter">
+                <input
+                  type="checkbox"
+                  checked={lightsOnly}
+                  onChange={(event) => setLightsOnly(event.target.checked)}
+                />
+                <span className="toggle-track" />
+                FLOODLIGHTS
+              </label>
+            </div>
+
+            {locationMessage && (
+              <p className="status-message" role="status">{locationMessage}</p>
+            )}
+          </div>
+        </section>
+
+        {/* VERIFIED GROUNDS */}
+        <section className="grounds-section">
+          <div className="section-overline">
+            <span className="section-number">02</span>
+            <span>THE BOOTROOM DIRECTORY</span>
+            <span className="overline-rule" />
+            <span className="overline-city">VERIFIED LISTINGS</span>
+          </div>
+
+          <div className="grounds-heading">
+            <div>
+              <p className="green-kicker">BUILT FOR THE LOVE OF THE GAME</p>
+              <h2>Find your next<br /><em>matchday.</em></h2>
+            </div>
+            <p className="grounds-intro">
+              Real grounds. Verified venues.
+              <br />
+              Your next game is closer than you think.
             </p>
           </div>
 
           {loading ? (
-            <div className="empty-state">Discovering the grounds…</div>
+            <div className="state-panel">
+              <div className="loading-ball">⚽</div>
+              <p>SCOUTING THE GROUNDS...</p>
+            </div>
           ) : loadError ? (
-            <div className="empty-state">
+            <div className="state-panel">
               <h3>We hit a small obstacle.</h3>
               <p>{loadError}</p>
               <button
@@ -444,53 +462,74 @@ export default function TurfsPage() {
                 type="button"
                 onClick={() => window.location.reload()}
               >
-                TRY AGAIN
+                TRY AGAIN ↗
               </button>
             </div>
           ) : filteredTurfs.length === 0 ? (
-            <div className="empty-state">
-              <span className="empty-star">✦</span>
-              <h3>No verified grounds found yet.</h3>
+            <div className="state-panel">
+              <div className="empty-symbol">✳</div>
+              <h3>No verified grounds found.</h3>
               <p>
                 {query
-                  ? "Try another locality, or suggest a ground for review below."
-                  : "As venues are verified and onboarded, they will appear here."}
+                  ? "Try another locality or suggest a ground for our team to review."
+                  : "Verified grounds will appear here as venues join the network."}
               </p>
+              <button
+                className="retry-button"
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setFormat("ALL");
+                  setSurface("ALL");
+                  setIndoorOnly(false);
+                  setLightsOnly(false);
+                }}
+              >
+                CLEAR FILTERS ↗
+              </button>
             </div>
           ) : (
-            <div className="turf-grid">
+            <div className="ground-grid">
               {filteredTurfs.map((turf, index) => (
-                <article className="turf-card" key={turf.id}>
-                  <div className={`pitch-image pitch-${index % 3}`}>
-                    <span className="card-number">
+                <article className="ground-card" key={turf.id}>
+                  <div
+                    className="ground-photo"
+                    style={{
+                      backgroundImage: `url("${FOOTBALL_IMAGES[index % FOOTBALL_IMAGES.length]}")`,
+                    }}
+                  >
+                    <div className="photo-shade" />
+                    <span className="ground-index">
                       {String(index + 1).padStart(2, "0")}
                     </span>
-                    <span className="verified-mark">✦ VERIFIED</span>
-                    <div className="pitch-lines" />
-                    <div className="pitch-lights" />
+                    <span className="verified-badge">
+                      <span>✦</span> VERIFIED
+                    </span>
+                    <span className="photo-caption">BOOTROOM GROUND NETWORK</span>
                   </div>
 
-                  <div className="turf-card-body">
-                    <p className="locality">
-                      ⌖ {turf.venues?.locality || "Kolkata"}
-                    </p>
+                  <div className="ground-info">
+                    <div className="ground-location">
+                      <span>⌖</span>
+                      {turf.venues?.locality || "Kolkata"}
+                    </div>
 
                     <h3>{turf.venues?.name || turf.name}</h3>
 
-                    <p className="turf-subtitle">
+                    <p className="ground-name">
                       {turf.name !== turf.venues?.name
                         ? turf.name
                         : "Football ground"}
                     </p>
 
-                    <div className="tags">
+                    <div className="ground-tags">
                       {turf.format && <span>{turf.format}</span>}
                       {turf.surface && <span>{turf.surface}</span>}
                       {turf.indoor && <span>INDOOR</span>}
                       {turf.floodlights && <span>FLOODLIGHTS</span>}
                     </div>
 
-                    <div className="card-actions">
+                    <div className="ground-actions">
                       <a
                         href={mapsSearch(
                           turf.venues?.name || turf.name,
@@ -499,11 +538,11 @@ export default function TurfsPage() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        DIRECTIONS ↗
+                        DIRECTIONS <span>↗</span>
                       </a>
 
                       <Link href={`/turfs/${turf.id}`}>
-                        EXPLORE GROUND →
+                        EXPLORE GROUND <span>→</span>
                       </Link>
                     </div>
                   </div>
@@ -513,44 +552,64 @@ export default function TurfsPage() {
           )}
 
           {query && filteredLeads.length > 0 && (
-            <section className="research-section">
-              <div className="eyebrow">MORE GROUNDS TO EXPLORE</div>
-              <h3>Worth discovering.</h3>
-              <p>
+            <div className="research-section">
+              <div className="section-overline">
+                <span className="section-number">03</span>
+                <span>THE WIDER FOOTBALL MAP</span>
+                <span className="overline-rule" />
+              </div>
+
+              <h3>More grounds to discover.</h3>
+              <p className="research-note">
                 These are research leads, not verified BOOTROOM inventory.
                 Check the location and details before travelling.
               </p>
 
               <div className="research-grid">
                 {filteredLeads.map((lead) => (
-                  <article className="research-card" key={lead.name}>
-                    <span>✦</span>
-                    <div>
+                  <a
+                    className="research-card"
+                    key={lead.name}
+                    href={mapsSearch(lead.name, lead.locality)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span className="research-star">✳</span>
+                    <span className="research-name">
                       <strong>{lead.name}</strong>
-                      <small>{lead.locality} · Not yet verified</small>
-                    </div>
-                    <a
-                      href={mapsSearch(lead.name, lead.locality)}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`Find ${lead.name} on Maps`}
-                    >
-                      ↗
-                    </a>
-                  </article>
+                      <small>{lead.locality} · Not verified</small>
+                    </span>
+                    <span className="research-arrow">↗</span>
+                  </a>
                 ))}
               </div>
-            </section>
+            </div>
           )}
         </section>
 
+        {/* COMMUNITY SUGGESTION */}
         <section className="suggest-section">
-          <div className="suggest-copy">
-            <div className="eyebrow">KNOW A GREAT GROUND?</div>
-            <h2>Help football find its home.</h2>
+          <div className="suggest-image">
+            <div className="suggest-image-overlay" />
+            <div className="suggest-image-content">
+              <span>THE GAME BELONGS TO EVERYONE</span>
+              <strong>KNOW A<br />HIDDEN GEM?</strong>
+              <small>HELP US PUT IT ON THE MAP.</small>
+            </div>
+          </div>
+
+          <div className="suggest-content">
+            <div className="section-overline">
+              <span className="section-number">04</span>
+              <span>COMMUNITY POWERED</span>
+            </div>
+
+            <h2>Help football<br /><em>find its home.</em></h2>
+
             <p>
-              Suggest a local pitch. Our team can review it before it joins the
-              verified grounds.
+              Know a great local pitch? Tell us about it.
+              Our team can review the ground before it joins
+              the verified BOOTROOM directory.
             </p>
 
             <button
@@ -564,729 +623,930 @@ export default function TurfsPage() {
             >
               {showSuggest ? "CLOSE FORM −" : "SUGGEST A GROUND ＋"}
             </button>
+
+            {showSuggest && (
+              <form className="suggest-form" onSubmit={submitSuggestion}>
+                <label>
+                  GROUND NAME *
+                  <input
+                    required
+                    maxLength={120}
+                    value={suggestion.venue_name}
+                    onChange={(event) =>
+                      setSuggestion({ ...suggestion, venue_name: event.target.value })
+                    }
+                  />
+                </label>
+
+                <label>
+                  LOCALITY / PIN CODE *
+                  <input
+                    required
+                    maxLength={120}
+                    value={suggestion.locality}
+                    onChange={(event) =>
+                      setSuggestion({ ...suggestion, locality: event.target.value })
+                    }
+                  />
+                </label>
+
+                <label>
+                  ADDRESS (OPTIONAL)
+                  <input
+                    maxLength={300}
+                    value={suggestion.address}
+                    onChange={(event) =>
+                      setSuggestion({ ...suggestion, address: event.target.value })
+                    }
+                  />
+                </label>
+
+                <label>
+                  GOOGLE MAPS LINK (OPTIONAL)
+                  <input
+                    type="url"
+                    maxLength={1000}
+                    placeholder="https://maps.google.com/..."
+                    value={suggestion.maps_url}
+                    onChange={(event) =>
+                      setSuggestion({ ...suggestion, maps_url: event.target.value })
+                    }
+                  />
+                </label>
+
+                <label className="full-field">
+                  EXTRA DETAILS (OPTIONAL)
+                  <textarea
+                    rows={3}
+                    maxLength={1000}
+                    value={suggestion.details}
+                    onChange={(event) =>
+                      setSuggestion({ ...suggestion, details: event.target.value })
+                    }
+                  />
+                </label>
+
+                <button disabled={suggestBusy} type="submit">
+                  {suggestBusy ? "SENDING..." : "SUBMIT FOR REVIEW →"}
+                </button>
+
+                {suggestMessage && (
+                  <p className="status-message full-field" role="status">
+                    {suggestMessage}
+                  </p>
+                )}
+              </form>
+            )}
           </div>
-
-          {showSuggest && (
-            <form className="suggest-form" onSubmit={submitSuggestion}>
-              <label>
-                GROUND NAME
-                <input
-                  required
-                  maxLength={120}
-                  value={suggestion.venue_name}
-                  onChange={(event) =>
-                    setSuggestion({
-                      ...suggestion,
-                      venue_name: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                LOCALITY / PIN CODE
-                <input
-                  required
-                  maxLength={120}
-                  value={suggestion.locality}
-                  onChange={(event) =>
-                    setSuggestion({
-                      ...suggestion,
-                      locality: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                ADDRESS (OPTIONAL)
-                <input
-                  maxLength={300}
-                  value={suggestion.address}
-                  onChange={(event) =>
-                    setSuggestion({
-                      ...suggestion,
-                      address: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                MAPS LINK (OPTIONAL)
-                <input
-                  type="url"
-                  maxLength={1000}
-                  placeholder="https://maps.google.com/…"
-                  value={suggestion.maps_url}
-                  onChange={(event) =>
-                    setSuggestion({
-                      ...suggestion,
-                      maps_url: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label>
-                EXTRA DETAILS (OPTIONAL)
-                <textarea
-                  rows={3}
-                  maxLength={1000}
-                  value={suggestion.details}
-                  onChange={(event) =>
-                    setSuggestion({
-                      ...suggestion,
-                      details: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <button disabled={suggestBusy} type="submit">
-                {suggestBusy ? "SENDING…" : "SEND FOR REVIEW →"}
-              </button>
-
-              {suggestMessage && (
-                <p className="status-message" role="status">
-                  {suggestMessage}
-                </p>
-              )}
-            </form>
-          )}
         </section>
 
-        <footer className="forest-footer">
-          BOOTROOM <span>✦</span> FOR THE LOVE OF THE GAME
+        <footer className="page-footer">
+          <div className="footer-brand">BOOTROOM<span>✳</span></div>
+          <p>YOUR CITY. YOUR SQUAD. YOUR GAME.</p>
+          <span className="footer-bottom">MADE FOR THE LOVE OF FOOTBALL · KOLKATA</span>
         </footer>
       </div>
 
       <style jsx>{`
-        .forest-page {
+        .find-page {
+          --green: #a4ffbd;
+          --green-strong: #70e995;
+          --ink: #050907;
+          --muted: #a7b3aa;
           position: relative;
           isolation: isolate;
           min-height: 100vh;
-          overflow: clip;
-          padding-bottom: 120px;
-          background: #050b08;
-          color: #f4ecd8;
+          overflow: hidden;
+          padding-bottom: 40px;
+          background: #050907;
+          color: #f5f8f4;
         }
 
-        /*
-         * CRITICAL LAYER FIX:
-         * Photograph is above the page background and behind all content.
-         * Do not change this to z-index: -1.
-         */
-        .forest-scene {
+        .ambient-glow {
           position: absolute;
-          z-index: 0;
-          inset: 0 0 auto;
-          height: min(1450px, 150vh);
+          z-index: -1;
+          top: 900px;
+          left: 50%;
+          width: 900px;
+          height: 900px;
+          transform: translateX(-50%);
           pointer-events: none;
-          background-color: #07100b;
-          background-image:
-            linear-gradient(
-              180deg,
-              rgba(5, 11, 8, 0.02) 0%,
-              rgba(5, 11, 8, 0.04) 38%,
-              rgba(5, 11, 8, 0.20) 62%,
-              rgba(5, 11, 8, 0.65) 82%,
-              #050b08 100%
-            ),
-            url("/brand/forest-night.png");
-          background-position: center top;
-          background-size: cover;
-          background-repeat: no-repeat;
+          background: radial-gradient(ellipse, #0b54252a, transparent 68%);
         }
 
-        .forest-content {
+        /* HERO — full-width football photography */
+        .hero {
+          position: relative;
+          min-height: 690px;
+          overflow: hidden;
+          background: #06100b;
+        }
+
+        .hero-photo,
+        .hero-shade {
+          position: absolute;
+          inset: 0;
+        }
+
+        .hero-photo {
+          background-image: url("https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=2400&q=90");
+          background-position: center 48%;
+          background-size: cover;
+          transform: scale(1.015);
+          animation: heroReveal 1.2s ease-out both;
+        }
+
+        .hero-shade {
+          background:
+            linear-gradient(90deg, rgba(2, 8, 5, .91) 0%, rgba(2, 8, 5, .68) 40%, rgba(2, 8, 5, .12) 100%),
+            linear-gradient(0deg, #050907 0%, transparent 36%, rgba(0, 0, 0, .2) 100%);
+        }
+
+        .hero-inner {
           position: relative;
           z-index: 1;
-          width: min(1120px, calc(100% - 34px));
-          margin: 0 auto;
-        }
-
-        /*
-         * Keep the hero transparent so the real photograph is visible
-         * directly behind the headline and introductory text.
-         */
-        .forest-content .hero {
-          position: relative;
-          isolation: isolate;
-          min-height: 490px;
-          padding: 105px 0 40px;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
-          justify-content: center;
-          background: transparent !important;
-          background-color: transparent !important;
-          background-image: none !important;
-          box-shadow: none !important;
-          backdrop-filter: none !important;
+          justify-content: space-between;
+          width: min(1200px, calc(100% - 64px));
+          min-height: 690px;
+          margin: 0 auto;
+          padding: 38px 0 32px;
         }
 
-        .forest-content .hero::before,
-        .forest-content .hero::after {
-          content: none !important;
-          display: none !important;
-          background: transparent !important;
-        }
-
-        .eyebrow {
+        .top-label {
           display: flex;
           align-items: center;
-          gap: 12px;
-          color: #e4ca86;
+          gap: 11px;
+          color: #e1e9e2;
           font-size: 10px;
           font-weight: 700;
-          letter-spacing: 0.23em;
-          text-shadow: 0 2px 12px #000;
+          letter-spacing: .23em;
         }
 
-        .eyebrow > span {
-          display: inline-block;
-          width: 22px;
-          height: 1px;
-          background: #c4a65c;
+        .live-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: var(--green);
+          box-shadow: 0 0 14px var(--green);
         }
 
-        .pretitle {
-          margin: 30px 0 8px;
-          color: #f1e4c3;
-          font-size: 11px;
-          letter-spacing: 0.3em;
-          text-shadow: 0 2px 12px #000;
+        .hero-copy {
+          margin-top: 50px;
+          margin-bottom: 40px;
+        }
+
+        .hero-kicker,
+        .green-kicker {
+          margin: 0 0 20px;
+          color: var(--green);
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: .25em;
         }
 
         .hero h1 {
           margin: 0;
-          color: #fff3d8;
-          font-family: Georgia, "Times New Roman", serif;
-          font-size: clamp(46px, 8.5vw, 104px);
-          font-weight: 400;
-          letter-spacing: -0.045em;
-          line-height: 0.98;
-          text-shadow: 0 3px 18px #000, 0 8px 40px #000b;
+          color: #fff;
+          font-family: Impact, "Arial Narrow", sans-serif;
+          font-size: clamp(72px, 11vw, 142px);
+          font-weight: 900;
+          letter-spacing: -.035em;
+          line-height: .82;
+          text-shadow: 0 5px 40px #0009;
         }
 
-        .hero h1 em {
-          color: #e6c779;
-          font-style: normal;
-          font-weight: 400;
+        .hero h1 span {
+          color: var(--green);
         }
 
-        .hero-copy {
-          max-width: 520px;
-          margin: 22px 0;
-          color: #fff9ec;
-          font-size: 14px;
+        .hero-description {
+          margin: 28px 0 27px;
+          color: #e0e8e1;
+          font-size: 15px;
           line-height: 1.8;
-          text-shadow: 0 2px 10px #000, 0 2px 22px #000;
         }
 
-        .mantra {
+        .hero-cta {
+          display: inline-flex;
+          align-items: center;
+          gap: 28px;
+          padding: 16px 20px;
+          background: var(--green);
+          color: #061009;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: .14em;
+          text-decoration: none;
+          transition: background .2s, transform .2s;
+        }
+
+        .hero-cta:hover {
+          background: #fff;
+          transform: translateY(-2px);
+        }
+
+        .hero-cta span {
+          font-size: 17px;
+        }
+
+        .hero-bottom {
           display: flex;
           align-items: center;
-          flex-wrap: wrap;
-          gap: 18px;
-          color: #f0d18b;
-          font-family: Georgia, "Times New Roman", serif;
-          font-size: 11px;
-          letter-spacing: 0.26em;
-          text-shadow: 0 2px 10px #000;
+          gap: 15px;
+          color: #d7e0d9;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: .18em;
         }
 
-        .mantra i {
-          width: 24px;
+        .hero-bottom-line {
+          width: 35px;
           height: 1px;
-          background: #d2b46e;
+          background: #a4ffbd77;
         }
 
-        .search-panel {
-          padding: clamp(19px, 3vw, 34px);
-          border: 1px solid #bfa05a88;
-          border-radius: 5px;
-          background: rgba(4, 12, 8, 0.91);
-          box-shadow: 0 24px 80px #0008, inset 0 1px #ffffff08;
-          backdrop-filter: blur(8px);
+        .hero-side-label {
+          position: absolute;
+          right: 25px;
+          top: 50%;
+          color: #ffffff9c;
+          font-size: 8px;
+          letter-spacing: .25em;
+          writing-mode: vertical-rl;
         }
 
-        .panel-heading {
-          margin-bottom: 18px;
-          color: #e1c984;
-          font-size: 10px;
-          letter-spacing: 0.2em;
+        .content-shell {
+          width: min(1200px, calc(100% - 64px));
+          margin: 0 auto;
         }
 
-        .panel-heading span {
-          float: right;
-          color: #d3b56b;
+        /* Section typography */
+        .section-overline {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          color: #d1ddd4;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: .19em;
+        }
+
+        .section-number {
+          color: var(--green);
+        }
+
+        .overline-rule {
+          flex: 1;
+          height: 1px;
+          background: #ffffff1b;
+        }
+
+        .overline-city {
+          color: #839187;
+          font-size: 8px;
+        }
+
+        /* Finder */
+        .finder-section {
+          position: relative;
+          z-index: 2;
+          margin-top: -1px;
+          padding: 55px 0 65px;
+          border-bottom: 1px solid #ffffff16;
+        }
+
+        .finder-heading {
+          display: flex;
+          align-items: end;
+          justify-content: space-between;
+          gap: 20px;
+          margin: 30px 0 25px;
+        }
+
+        .finder-heading h2,
+        .grounds-heading h2,
+        .suggest-content h2 {
+          margin: 0;
+          color: #f3f7f3;
+          font-family: Impact, "Arial Narrow", sans-serif;
+          font-size: clamp(40px, 5vw, 62px);
+          font-weight: 500;
+          letter-spacing: -.015em;
+          line-height: .98;
+        }
+
+        .finder-heading > div:first-child > p {
+          margin: 12px 0 0;
+          color: var(--muted);
+          font-size: 13px;
+        }
+
+        .finder-count {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding-bottom: 5px;
+        }
+
+        .finder-count strong {
+          color: var(--green);
+          font-family: Impact, sans-serif;
+          font-size: 48px;
+          font-weight: 500;
+        }
+
+        .finder-count span {
+          color: #9eaca2;
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: .13em;
+          line-height: 1.6;
+        }
+
+        .finder-box {
+          padding: 22px;
+          border: 1px solid #ffffff20;
+          background: linear-gradient(135deg, #101a14, #0a100c);
+          box-shadow: 0 24px 60px #0005;
         }
 
         .search-row {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 12px;
+          grid-template-columns: minmax(0, 1fr) 145px;
+          gap: 10px;
         }
 
-        .search-box {
+        .search-input-wrap {
           display: flex;
           align-items: center;
-          gap: 12px;
           min-width: 0;
-          min-height: 54px;
-          padding: 0 15px;
-          border: 1px solid #c5ad7b99;
-          border-radius: 5px;
-          background: rgba(2, 8, 6, 0.94);
-          color: #e3c980;
+          min-height: 56px;
+          gap: 13px;
+          padding: 0 16px;
+          border: 1px solid #ffffff24;
+          background: #050a07;
         }
 
-        .search-box > span {
+        .search-icon {
+          color: var(--green);
           font-size: 28px;
         }
 
-        .search-box input {
+        .search-input-wrap input {
           flex: 1;
           min-width: 0;
           border: 0;
           outline: 0;
           background: transparent;
-          color: #fff5dd;
-          font-size: 14px;
+          color: #fff;
+          font-size: 13px;
         }
 
-        .search-box input::placeholder {
-          color: #a0a79b;
+        .search-input-wrap input::placeholder {
+          color: #77847a;
         }
 
-        .clear-search {
+        .clear-button {
           border: 0;
-          background: none;
-          color: #c7b88f;
-          font-size: 22px;
+          background: transparent;
+          color: #aab7ad;
+          font-size: 23px;
           cursor: pointer;
         }
 
         .location-button {
-          min-height: 54px;
-          padding: 0 18px;
-          border: 1px solid #8d7744aa;
-          border-radius: 5px;
-          background: #0a1710;
-          color: #e4ce93;
+          border: 1px solid #a4ffbd;
+          background: #a4ffbd;
+          color: #061009;
           font-size: 10px;
-          letter-spacing: 0.1em;
+          font-weight: 900;
+          letter-spacing: .1em;
           cursor: pointer;
+          transition: background .2s;
+        }
+
+        .location-button:hover {
+          background: #fff;
         }
 
         .location-button span {
-          margin-right: 8px;
-          font-size: 19px;
+          margin-right: 7px;
+          font-size: 17px;
         }
 
-        .filters {
+        .filter-row {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 11px;
-          margin-top: 16px;
+          gap: 10px;
+          margin-top: 13px;
         }
 
-        .select-filter {
+        .filter-control {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 9px;
-          min-height: 42px;
-          padding: 0 10px;
-          border: 1px solid #c0a76355;
-          border-radius: 4px;
-          background: rgba(8, 17, 13, 0.96);
+          gap: 12px;
+          min-height: 43px;
+          padding: 0 12px;
+          border: 1px solid #ffffff1b;
+          background: #070d09;
         }
 
-        .filters label > span {
-          color: #d9c58f;
-          font-size: 9px;
-          letter-spacing: 0.12em;
+        .filter-control > span {
+          color: #9ca99f;
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: .13em;
         }
 
-        .filters select {
+        .filter-control select {
           max-width: 170px;
-          padding: 6px;
           border: 0;
           outline: 0;
-          background: #08110d;
-          color: #f2e8d2;
-          font-size: 12px;
+          background: transparent;
+          color: #e7eee8;
+          font-size: 11px;
         }
 
-        .check-filter {
+        .filter-control option {
+          background: #08110c;
+          color: #fff;
+        }
+
+        .toggle-filter {
           display: flex;
           align-items: center;
           gap: 8px;
-          min-height: 42px;
-          padding: 0 10px;
-          border: 1px solid #c0a76355;
-          border-radius: 4px;
-          color: #d9c58f;
-          font-size: 9px;
-          letter-spacing: 0.12em;
+          min-height: 43px;
+          padding: 0 12px;
+          border: 1px solid #ffffff1b;
+          color: #b8c4bb;
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: .1em;
+          cursor: pointer;
         }
 
-        .check-filter input {
-          width: 15px;
-          height: 15px;
-          accent-color: #c8aa60;
+        .toggle-filter input {
+          position: absolute;
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .toggle-track {
+          position: relative;
+          width: 25px;
+          height: 14px;
+          border-radius: 20px;
+          background: #344039;
+          transition: background .2s;
+        }
+
+        .toggle-track::after {
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #d5ded7;
+          content: "";
+          transition: transform .2s;
+        }
+
+        .toggle-filter input:checked + .toggle-track {
+          background: #4caa69;
+        }
+
+        .toggle-filter input:checked + .toggle-track::after {
+          transform: translateX(11px);
+          background: #fff;
+        }
+
+        .toggle-filter input:focus-visible + .toggle-track {
+          outline: 2px solid var(--green);
+          outline-offset: 3px;
         }
 
         .status-message {
           margin: 13px 0 0;
-          color: #e6d19b;
+          color: var(--green);
           font-size: 12px;
           line-height: 1.6;
         }
 
-        .results-section {
-          padding: 55px 0 15px;
+        /* Grounds */
+        .grounds-section {
+          padding: 70px 0 75px;
         }
 
-        .results-heading {
+        .grounds-heading {
           display: flex;
           align-items: end;
           justify-content: space-between;
-          gap: 20px;
-          margin-bottom: 24px;
+          gap: 30px;
+          margin: 32px 0;
         }
 
-        .results-heading h2,
-        .suggest-copy h2 {
-          margin: 8px 0 0;
-          color: #f0dfbd;
-          font: 400 clamp(30px, 4.4vw, 48px)/1.1 Georgia,
-            "Times New Roman", serif;
-          text-shadow: 0 2px 12px #000;
-        }
-
-        .trust-line {
-          color: #d4c08c;
+        .green-kicker {
+          margin-bottom: 13px;
           font-size: 9px;
-          letter-spacing: 0.15em;
-          white-space: nowrap;
-          text-shadow: 0 2px 10px #000;
         }
 
-        .trust-line i {
-          display: inline-block;
-          width: 4px;
-          height: 4px;
-          margin: 0 10px 2px;
-          border-radius: 50%;
-          background: #d2b36b;
+        .grounds-heading h2 em,
+        .suggest-content h2 em {
+          color: var(--green);
+          font-style: normal;
         }
 
-        .empty-state {
-          padding: 40px 20px;
-          border: 1px solid #bfa05a55;
-          background: rgba(5, 13, 9, 0.94);
-          color: #e0ddcf;
-          line-height: 1.7;
-          text-align: center;
+        .grounds-intro {
+          margin: 0 0 5px;
+          color: #a8b4aa;
+          font-size: 12px;
+          line-height: 1.9;
         }
 
-        .empty-state h3 {
-          margin: 10px;
-          color: #f0dfbd;
-          font: 400 27px Georgia, serif;
-        }
-
-        .empty-state p {
-          max-width: 520px;
-          margin: 0 auto;
-          font-size: 13px;
-        }
-
-        .empty-star {
-          color: #d5b76e;
-          font-size: 24px;
-        }
-
-        .retry-button {
-          margin-top: 16px;
-          padding: 12px 18px;
-          border: 1px solid #d8bd76;
-          background: #c9aa60;
-          color: #11170f;
-          cursor: pointer;
-        }
-
-        .turf-grid {
+        .ground-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 17px;
         }
 
-        .turf-card {
+        .ground-card {
           min-width: 0;
-          border: 1px solid #b99b5c66;
-          background: #06100c;
-          transition: transform 0.25s, border-color 0.25s,
-            box-shadow 0.25s;
-        }
-
-        .turf-card:hover {
-          transform: translateY(-4px);
-          border-color: #d9bb71;
-          box-shadow: 0 16px 40px #0008;
-        }
-
-        .pitch-image {
-          position: relative;
-          height: 175px;
           overflow: hidden;
-          background:
-            radial-gradient(ellipse at 50% 80%, #5b8749 0 17%, #23462c 18% 31%, transparent 32%),
-            linear-gradient(180deg, #091b20, #142d2a 48%, #07110c);
+          border: 1px solid #ffffff1c;
+          background: #0b120d;
+          transition: border-color .25s, transform .25s, box-shadow .25s;
         }
 
-        .pitch-1 {
-          background:
-            radial-gradient(ellipse at 50% 85%, #71945a 0 20%, #2e5734 21% 37%, transparent 38%),
-            linear-gradient(180deg, #15282e, #0b1916 75%);
+        .ground-card:hover {
+          transform: translateY(-5px);
+          border-color: #a4ffbd85;
+          box-shadow: 0 18px 45px #0008;
         }
 
-        .pitch-2 {
-          background:
-            radial-gradient(ellipse at 50% 80%, #63884c 0 18%, #27462b 19% 34%, transparent 35%),
-            linear-gradient(180deg, #101e23, #1d3427 70%);
+        .ground-photo {
+          position: relative;
+          height: 205px;
+          overflow: hidden;
+          background-color: #14251a;
+          background-position: center;
+          background-size: cover;
+          transition: background-size .3s;
         }
 
-        .pitch-image::before {
-          content: "";
+        .photo-shade {
           position: absolute;
           inset: 0;
-          background:
-            linear-gradient(180deg, transparent, #030806bb),
-            repeating-linear-gradient(
-              90deg,
-              transparent 0 17%,
-              #d7c99412 18% 18.4%
-            );
+          background: linear-gradient(180deg, #02070470, transparent 40%, #020704bb);
         }
 
-        .card-number {
+        .ground-index {
           position: absolute;
-          top: 12px;
-          left: 12px;
-          display: grid;
-          width: 34px;
-          height: 34px;
-          place-items: center;
-          border: 1px solid #d8bd76;
-          border-radius: 50%;
-          background: #07100be8;
-          color: #f1dca3;
-          font: 14px Georgia, serif;
+          top: 13px;
+          left: 14px;
+          color: #fff;
+          font-family: Impact, sans-serif;
+          font-size: 25px;
+          text-shadow: 0 2px 12px #000;
         }
 
-        .verified-mark {
+        .verified-badge {
           position: absolute;
-          top: 18px;
-          right: 12px;
-          color: #f0d28a;
+          top: 15px;
+          right: 13px;
+          padding: 7px 9px;
+          border: 1px solid #a4ffbd70;
+          background: #07130bd9;
+          color: var(--green);
           font-size: 8px;
-          letter-spacing: 0.13em;
+          font-weight: 900;
+          letter-spacing: .13em;
         }
 
-        .pitch-lines {
+        .verified-badge span {
+          margin-right: 5px;
+        }
+
+        .photo-caption {
           position: absolute;
-          top: 25%;
-          right: 20%;
-          bottom: 12%;
-          left: 20%;
-          border: 1px solid #d5e1b366;
-          background: linear-gradient(
-            90deg,
-            transparent 49.7%,
-            #d5e1b366 50%,
-            transparent 50.3%
-          );
-          transform: perspective(150px) rotateX(8deg);
+          bottom: 13px;
+          left: 14px;
+          color: #ffffffd4;
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: .16em;
         }
 
-        .pitch-lights {
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(ellipse at 15% 10%, #fff3c455, transparent 15%),
-            radial-gradient(ellipse at 85% 10%, #fff3c455, transparent 15%);
+        .ground-info {
+          padding: 19px 17px 15px;
         }
 
-        .turf-card-body {
-          padding: 17px;
+        .ground-location {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          color: var(--green);
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: .12em;
+          text-transform: uppercase;
         }
 
-        .locality {
-          margin: 0 0 9px;
-          color: #d4b777;
-          font-size: 10px;
-          letter-spacing: 0.08em;
+        .ground-location span {
+          font-size: 15px;
         }
 
-        .turf-card-body h3 {
-          margin: 0 0 5px;
-          color: #f1e2c3;
-          font: 400 22px/1.2 Georgia, serif;
+        .ground-info h3 {
+          margin: 13px 0 5px;
+          overflow-wrap: anywhere;
+          color: #f3f7f3;
+          font-family: Impact, "Arial Narrow", sans-serif;
+          font-size: 27px;
+          font-weight: 500;
+          letter-spacing: .01em;
         }
 
-        .turf-subtitle {
+        .ground-name {
           margin: 0;
-          color: #b7c0b2;
-          font-size: 12px;
+          color: #8f9c92;
+          font-size: 11px;
         }
 
-        .tags {
+        .ground-tags {
           display: flex;
           flex-wrap: wrap;
           gap: 6px;
-          margin: 15px 0;
+          min-height: 25px;
+          margin: 17px 0;
         }
 
-        .tags span {
-          padding: 5px 7px;
-          border: 1px solid #bba15d55;
-          color: #d7d8ca;
-          font-size: 9px;
+        .ground-tags span {
+          padding: 6px 8px;
+          border: 1px solid #ffffff1d;
+          color: #c1cec4;
+          font-size: 8px;
+          font-weight: 700;
+          letter-spacing: .06em;
         }
 
-        .card-actions {
+        .ground-actions {
           display: flex;
           justify-content: space-between;
+          align-items: center;
           gap: 8px;
-          padding-top: 13px;
-          border-top: 1px solid #bba15d44;
+          padding-top: 14px;
+          border-top: 1px solid #ffffff1a;
         }
 
-        .card-actions a {
-          color: #dfc47d;
-          font-size: 9px;
-          letter-spacing: 0.07em;
+        .ground-actions a {
+          color: #c5d0c8;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: .08em;
           text-decoration: none;
+          transition: color .2s;
         }
 
-        .card-actions a:hover {
-          color: #fff0c5;
+        .ground-actions a:last-child {
+          color: var(--green);
         }
 
+        .ground-actions a:hover {
+          color: #fff;
+        }
+
+        .ground-actions a span {
+          margin-left: 5px;
+        }
+
+        .state-panel {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 250px;
+          padding: 35px 20px;
+          border: 1px solid #ffffff1c;
+          background: #0b120d;
+          text-align: center;
+        }
+
+        .state-panel h3 {
+          margin: 10px 0;
+          color: #fff;
+          font-family: Impact, sans-serif;
+          font-size: 30px;
+          font-weight: 500;
+        }
+
+        .state-panel p {
+          max-width: 470px;
+          color: #a8b4aa;
+          font-size: 12px;
+          line-height: 1.8;
+        }
+
+        .loading-ball,
+        .empty-symbol {
+          color: var(--green);
+          font-size: 32px;
+        }
+
+        .state-panel > p:first-of-type {
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: .17em;
+        }
+
+        .retry-button {
+          margin-top: 13px;
+          padding: 13px 17px;
+          border: 1px solid var(--green);
+          background: var(--green);
+          color: #061009;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: .1em;
+          cursor: pointer;
+        }
+
+        /* Research leads */
         .research-section {
-          margin-top: 42px;
-          padding-top: 26px;
-          border-top: 1px solid #c5a65a55;
+          margin-top: 55px;
+          padding-top: 28px;
+          border-top: 1px solid #ffffff1c;
         }
 
         .research-section h3 {
-          margin: 7px 0;
-          color: #ead9b6;
-          font: 400 28px Georgia, serif;
+          margin: 22px 0 8px;
+          color: #f0f5f0;
+          font-family: Impact, sans-serif;
+          font-size: 34px;
+          font-weight: 500;
         }
 
-        .research-section > p {
-          color: #c1c8ba;
-          font-size: 12px;
-          line-height: 1.6;
+        .research-note {
+          color: #9eaaa1;
+          font-size: 11px;
+          line-height: 1.7;
         }
 
         .research-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 9px;
-          margin-top: 18px;
+          margin-top: 19px;
         }
 
         .research-card {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 13px;
           min-width: 0;
-          padding: 13px;
-          border: 1px solid #bba15d44;
-          background: rgba(5, 13, 9, 0.95);
+          padding: 15px;
+          border: 1px solid #ffffff19;
+          background: #0a110d;
+          text-decoration: none;
+          transition: border-color .2s, background .2s;
         }
 
-        .research-card > span {
-          color: #d4b46b;
+        .research-card:hover {
+          border-color: #a4ffbd70;
+          background: #101c14;
         }
 
-        .research-card div {
+        .research-star {
+          color: var(--green);
+          font-size: 16px;
+        }
+
+        .research-name {
           flex: 1;
           min-width: 0;
         }
 
-        .research-card strong,
-        .research-card small {
+        .research-name strong,
+        .research-name small {
           display: block;
           overflow-wrap: anywhere;
         }
 
-        .research-card strong {
-          color: #f0e2c5;
-          font: 16px Georgia, serif;
+        .research-name strong {
+          color: #edf3ed;
+          font-size: 12px;
         }
 
-        .research-card small {
-          margin-top: 4px;
-          color: #b9c1b3;
-          font-size: 10px;
+        .research-name small {
+          margin-top: 5px;
+          color: #8e9b91;
+          font-size: 9px;
         }
 
-        .research-card a {
-          color: #d7bb74;
-          font-size: 20px;
-          text-decoration: none;
+        .research-arrow {
+          color: var(--green);
+          font-size: 18px;
         }
 
+        /* Suggestion section */
         .suggest-section {
           display: grid;
-          grid-template-columns: 0.8fr 1.2fr;
-          gap: 30px;
-          align-items: start;
-          margin-top: 45px;
-          padding: clamp(20px, 4vw, 36px);
-          border: 1px solid #bfa05a66;
-          background: rgba(5, 13, 9, 0.95);
-          box-shadow: 0 20px 60px #0007;
+          grid-template-columns: .85fr 1.15fr;
+          border: 1px solid #ffffff24;
+          background: #0b120d;
         }
 
-        .suggest-copy > p {
-          max-width: 400px;
-          color: #c2c9bc;
-          font-size: 13px;
-          line-height: 1.8;
+        .suggest-image {
+          position: relative;
+          min-height: 460px;
+          overflow: hidden;
+          background-image: url("https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=1200&q=85");
+          background-position: center;
+          background-size: cover;
+        }
+
+        .suggest-image-overlay {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(0deg, #030805e8, #03080520 90%);
+        }
+
+        .suggest-image-content {
+          position: absolute;
+          right: 25px;
+          bottom: 27px;
+          left: 25px;
+        }
+
+        .suggest-image-content span,
+        .suggest-image-content small {
+          display: block;
+          color: var(--green);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: .16em;
+        }
+
+        .suggest-image-content strong {
+          display: block;
+          margin: 12px 0;
+          color: #fff;
+          font-family: Impact, sans-serif;
+          font-size: clamp(38px, 5vw, 62px);
+          font-weight: 500;
+          line-height: .9;
+        }
+
+        .suggest-content {
+          padding: clamp(25px, 4vw, 48px);
+        }
+
+        .suggest-content h2 {
+          margin-top: 32px;
+          font-size: clamp(38px, 4.5vw, 55px);
+        }
+
+        .suggest-content > p {
+          max-width: 430px;
+          margin: 17px 0 23px;
+          color: #a8b4aa;
+          font-size: 12px;
+          line-height: 1.9;
         }
 
         .suggest-toggle {
-          margin-top: 10px;
-          padding: 13px 15px;
-          border: 1px solid #e3c77c;
-          background: #c9aa60;
-          color: #12180f;
-          font-size: 10px;
-          letter-spacing: 0.1em;
-          font-weight: 700;
+          padding: 14px 17px;
+          border: 1px solid var(--green);
+          background: var(--green);
+          color: #061009;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: .12em;
           cursor: pointer;
+          transition: background .2s;
+        }
+
+        .suggest-toggle:hover {
+          background: #fff;
         }
 
         .suggest-form {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 13px;
+          margin-top: 26px;
+          padding-top: 24px;
+          border-top: 1px solid #ffffff1c;
         }
 
         .suggest-form label {
-          color: #d8c58f;
-          font-size: 9px;
-          letter-spacing: 0.13em;
+          color: #aebbb1;
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: .12em;
         }
 
         .suggest-form input,
@@ -1294,61 +1554,151 @@ export default function TurfsPage() {
           display: block;
           box-sizing: border-box;
           width: 100%;
-          margin-top: 7px;
-          padding: 12px;
-          border: 1px solid #bda15b66;
-          border-radius: 3px;
+          margin-top: 8px;
+          padding: 13px;
+          border: 1px solid #ffffff25;
           outline: 0;
-          background: #030906;
-          color: #f4ecd8;
-          font: 13px Arial, sans-serif;
+          background: #050a07;
+          color: #f5f8f4;
+          font: 12px Arial, sans-serif;
         }
 
         .suggest-form input:focus,
         .suggest-form textarea:focus {
-          border-color: #d8bd76;
+          border-color: var(--green);
         }
 
-        .suggest-form label:nth-child(n + 3),
-        .suggest-form > button,
-        .suggest-form > .status-message {
+        .suggest-form input::placeholder {
+          color: #718076;
+        }
+
+        .suggest-form .full-field,
+        .suggest-form > button {
           grid-column: 1 / -1;
         }
 
         .suggest-form > button {
-          padding: 14px;
+          min-height: 47px;
           border: 0;
-          background: linear-gradient(110deg, #e0c77f, #b18b42);
-          color: #11170f;
-          font-size: 10px;
-          letter-spacing: 0.13em;
-          font-weight: 800;
+          background: var(--green);
+          color: #061009;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: .13em;
           cursor: pointer;
         }
 
         .suggest-form > button:disabled {
-          opacity: 0.55;
+          opacity: .55;
           cursor: wait;
         }
 
-        .forest-footer {
-          padding: 48px 0 0;
-          color: #c1c4b4;
-          font-size: 9px;
-          letter-spacing: 0.18em;
+        /* Footer */
+        .page-footer {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 65px 0 15px;
           text-align: center;
-          text-shadow: 0 2px 10px #000;
         }
 
-        .forest-footer span {
-          margin: 0 10px;
-          color: #d7b76d;
+        .footer-brand {
+          color: #f3f7f3;
+          font-family: Impact, sans-serif;
+          font-size: 31px;
+          letter-spacing: .1em;
         }
 
-        @media (max-width: 760px) {
-          .forest-content .hero {
-            min-height: 440px;
-            padding-top: 90px;
+        .footer-brand span {
+          margin-left: 9px;
+          color: var(--green);
+        }
+
+        .page-footer p {
+          margin: 9px 0 23px;
+          color: #a8b4aa;
+          font-size: 9px;
+          font-weight: 800;
+          letter-spacing: .2em;
+        }
+
+        .footer-bottom {
+          color: #68766c;
+          font-size: 8px;
+          letter-spacing: .16em;
+        }
+
+        @keyframes heroReveal {
+          from { opacity: .65; transform: scale(1.06); }
+          to { opacity: 1; transform: scale(1.015); }
+        }
+
+        @media (max-width: 850px) {
+          .ground-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .suggest-section {
+            grid-template-columns: .8fr 1.2fr;
+          }
+
+          .suggest-image {
+            min-height: 400px;
+          }
+        }
+
+        @media (max-width: 650px) {
+          .hero,
+          .hero-inner {
+            min-height: 610px;
+          }
+
+          .hero-inner,
+          .content-shell {
+            width: calc(100% - 36px);
+          }
+
+          .hero-photo {
+            background-position: 57% center;
+          }
+
+          .hero-shade {
+            background:
+              linear-gradient(90deg, #020805d9, #02080555 100%),
+              linear-gradient(0deg, #050907 0%, transparent 45%);
+          }
+
+          .hero h1 {
+            font-size: clamp(68px, 17vw, 105px);
+          }
+
+          .hero-description {
+            font-size: 13px;
+          }
+
+          .hero-side-label {
+            right: 10px;
+            font-size: 7px;
+          }
+
+          .finder-section {
+            padding: 42px 0 48px;
+          }
+
+          .finder-heading {
+            margin-top: 25px;
+          }
+
+          .finder-heading h2 {
+            font-size: 45px;
+          }
+
+          .finder-count strong {
+            font-size: 37px;
+          }
+
+          .finder-box {
+            padding: 14px;
           }
 
           .search-row {
@@ -1356,107 +1706,159 @@ export default function TurfsPage() {
           }
 
           .location-button {
-            width: 100%;
+            min-height: 48px;
           }
 
-          .turf-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+          .filter-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
           }
 
-          .pitch-image {
-            height: 145px;
+          .filter-control {
+            justify-content: space-between;
+            min-width: 0;
+            padding: 0 8px;
           }
 
-          .results-heading {
+          .filter-control select {
+            max-width: 105px;
+            min-width: 0;
+          }
+
+          .toggle-filter {
+            justify-content: center;
+            padding: 0 5px;
+            font-size: 8px;
+          }
+
+          .grounds-section {
+            padding: 48px 0;
+          }
+
+          .grounds-heading {
             align-items: flex-start;
             flex-direction: column;
+            gap: 15px;
+            margin: 25px 0;
           }
 
-          .trust-line {
-            white-space: normal;
+          .grounds-heading h2 {
+            font-size: 52px;
           }
 
-          .suggest-section {
+          .ground-grid {
             grid-template-columns: 1fr;
+            gap: 14px;
           }
 
-          .suggest-form {
-            grid-template-columns: 1fr;
+          .ground-photo {
+            height: 225px;
           }
 
-          .suggest-form label {
-            grid-column: 1 / -1;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .forest-content {
-            width: calc(100% - 24px);
-          }
-
-          .forest-content .hero {
-            min-height: 400px;
-            padding-top: 78px;
-          }
-
-          .hero h1 {
-            font-size: clamp(42px, 12vw, 64px);
-          }
-
-          .hero-copy {
-            font-size: 13px;
-          }
-
-          .mantra {
-            gap: 10px;
-            font-size: 9px;
-          }
-
-          .mantra i {
-            width: 12px;
-          }
-
-          .search-panel {
-            padding: 17px 13px;
-          }
-
-          .filters {
-            gap: 7px;
-          }
-
-          .select-filter {
-            width: 100%;
-          }
-
-          .filters select {
-            max-width: 60%;
-          }
-
-          .check-filter {
-            flex: 1;
-            justify-content: center;
-            padding: 0 6px;
-          }
-
-          .turf-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .pitch-image {
-            height: 190px;
+          .ground-info h3 {
+            font-size: 29px;
           }
 
           .research-grid {
             grid-template-columns: 1fr;
           }
 
-          .card-actions a {
+          .suggest-section {
+            grid-template-columns: 1fr;
+          }
+
+          .suggest-image {
+            min-height: 280px;
+          }
+
+          .suggest-image-content strong {
+            font-size: 52px;
+          }
+
+          .suggest-content {
+            padding: 25px 20px;
+          }
+
+          .suggest-content h2 {
+            margin-top: 25px;
+            font-size: 44px;
+          }
+
+          .suggest-form {
+            grid-template-columns: 1fr;
+          }
+
+          .suggest-form label,
+          .suggest-form .full-field {
+            grid-column: 1 / -1;
+          }
+
+          .hero-bottom {
+            gap: 9px;
+            font-size: 7px;
+          }
+
+          .hero-bottom-line {
+            width: 15px;
+          }
+
+          .section-overline {
+            gap: 8px;
             font-size: 8px;
+          }
+
+          .overline-city {
+            font-size: 7px;
+          }
+        }
+
+        @media (max-width: 380px) {
+          .hero,
+          .hero-inner {
+            min-height: 570px;
+          }
+
+          .hero h1 {
+            font-size: 63px;
+          }
+
+          .finder-heading h2 {
+            font-size: 39px;
+          }
+
+          .finder-count strong {
+            font-size: 31px;
+          }
+
+          .filter-control {
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 5px;
+          }
+
+          .filter-control select {
+            max-width: 100%;
+            width: 100%;
+          }
+
+          .toggle-filter {
+            font-size: 7px;
+          }
+
+          .ground-actions a {
+            font-size: 7px;
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .turf-card {
+          .hero-photo {
+            animation: none;
+          }
+
+          .ground-card,
+          .hero-cta,
+          .suggest-toggle {
             transition: none;
           }
         }
