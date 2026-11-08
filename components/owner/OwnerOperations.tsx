@@ -55,11 +55,20 @@ const mutedStyle: React.CSSProperties = {
   fontSize: 13,
 };
 
-export default function OwnerOperations() {
+type OwnerOperationsTab = "games" | "players" | "turfs" | "finance";
+
+type OwnerOperationsProps = {
+  activeTab?: OwnerOperationsTab;
+};
+
+export default function OwnerOperations({
+  activeTab,
+}: OwnerOperationsProps = {}) {
   const [data, setData] =
     useState<DashboardData>(initialData);
 
-  const [tab, setTab] = useState("games");
+  const [internalTab, setInternalTab] = useState<OwnerOperationsTab>("games");
+  const tab = activeTab ?? internalTab;
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -248,11 +257,11 @@ export default function OwnerOperations() {
           flexWrap: "wrap",
         }}
       >
-        {tabs.map(([id, label, count]) => (
+        {!activeTab && tabs.map(([id, label, count]) => (
           <button
             key={id}
             onClick={() => {
-              setTab(id);
+              setInternalTab(id as OwnerOperationsTab);
               setSearch("");
             }}
             style={{
