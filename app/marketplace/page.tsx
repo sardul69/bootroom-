@@ -355,7 +355,12 @@ export default function MarketplacePage() {
         ) : (
           <div className="tzbl-merch-grid">
             {visibleProducts.map((product) => (
-              <article className="tzbl-merch-card" key={product.id}>
+              <a
+                className="tzbl-merch-card"
+                href={`/marketplace/${product.id}`}
+                key={product.id}
+                aria-label={`View ${product.name}`}
+              >
                 <div className="tzbl-merch-image">
                   <img
                     src={product.image_url}
@@ -377,8 +382,9 @@ export default function MarketplacePage() {
                   )}
 
                   <small>{product.stock_quantity} IN STOCK</small>
+                  <span className="tzbl-merch-view">VIEW DETAILS ↗</span>
                 </div>
-              </article>
+              </a>
             ))}
           </div>
         )}
@@ -1071,7 +1077,26 @@ export default function MarketplacePage() {
           gap: 14px;
         }
 
-        .tzbl-merch-card {
+
+        .tzbl-merch-view {
+          display: inline-block;
+          margin-top: 3px;
+          color: #d2b779;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 1.5px;
+        }
+
+        .tzbl-merch-card:focus-visible {
+          outline: 2px solid #d2b779;
+          outline-offset: 4px;
+        }
+
+.tzbl-merch-card {
+          display: block;
+          color: inherit;
+          text-decoration: none;
+          cursor: pointer;
           min-width: 0;
           overflow: hidden;
           border: 1px solid rgba(210,183,121,.19);
