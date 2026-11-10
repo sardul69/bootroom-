@@ -1836,6 +1836,48 @@ nav[aria-label="Main navigation"] a {
 
         .br-button-outline:hover { border-color: var(--br-green); }
 
+        /* Clean, understated homepage navigation */
+        .br-navlinks {
+          border: 0 !important;
+          outline: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
+        }
+
+        .br-navlinks a {
+          position: relative;
+          padding: 8px 0;
+          color: #d0d8d2;
+          letter-spacing: .25px;
+        }
+
+        .br-navlinks a:hover {
+          color: var(--br-green);
+        }
+
+        /* Premium Marketplace hero entrance */
+        .br-button-market {
+          gap: 9px;
+          color: #ead9ad;
+          border: 1px solid rgba(205,177,117,.78);
+          background: linear-gradient(135deg, rgba(196,166,103,.18), rgba(15,22,16,.96) 55%, rgba(80,66,39,.22));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 7px 22px rgba(0,0,0,.24);
+        }
+
+        .br-button-market span {
+          color: #d8bd80;
+          font-size: 15px;
+        }
+
+        .br-button-market:hover {
+          color: #fff0c8;
+          border-color: #e3ca91;
+          background: linear-gradient(135deg, #403722, #111811 60%, #292719);
+          box-shadow: 0 10px 28px rgba(0,0,0,.38);
+        }
+
+
         .br-hero-foot {
           display: flex;
           flex-wrap: wrap;
@@ -2293,8 +2335,12 @@ nav[aria-label="Main navigation"] a {
             width: 100%;
             justify-content: space-between;
             gap: 12px;
-            padding: 9px 0 2px;
-            border-top: 1px solid rgba(255,255,255,.08);
+            padding: 11px 2px 3px;
+            border: 0;
+            border-top: 1px solid rgba(120,255,173,.16);
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
           }
 
           .br-navlinks a { font-size: 11px; }

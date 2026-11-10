@@ -149,6 +149,10 @@ export default async function Home() {
                 <Link href="/turfs" className="br-button br-button-outline">
                   EXPLORE TURFS
                 </Link>
+                <Link href="/marketplace" className="br-button br-button-market">
+                  <span aria-hidden="true">✦</span>
+                  ENTER MARKETPLACE
+                </Link>
               </div>
 
               <div className="br-hero-foot">
@@ -314,47 +318,7 @@ export default async function Home() {
             </div>
           </section>
 
-          {/* MARKETPLACE SECRET ENTRANCE */}
-          <section className="br-market-section">
-            <div className="br-container">
-              <Link href="/marketplace" className="br-market-door">
-                <div className="br-market-texture" aria-hidden="true" />
-                <div className="br-market-border">
-                  <div className="br-market-topline">
-                    <span>BOOTROOM EXCLUSIVE</span>
-                    <span>EST. FOR THE PLAYERS</span>
-                  </div>
 
-                  <div className="br-market-center">
-                    <div className="br-market-emblem">
-                      <span>BR</span>
-                    </div>
-
-                    <div className="br-market-overline">
-                      BEYOND THE PITCH
-                    </div>
-
-                    <h2>THE MARKETPLACE</h2>
-
-                    <p>
-                      A different side of the game.
-                      <br />
-                      Reserved for the BOOTROOM community.
-                    </p>
-
-                    <span className="br-market-enter">
-                      DISCOVER THE COLLECTION
-                    </span>
-                  </div>
-
-                  <div className="br-market-bottom">
-                    <span>ACCESS THE VAULT</span>
-                    <span>BOOTROOM COMMUNITY</span>
-                  </div>
-                </div>
-              </Link>
-            </div>
-          </section>
 
           {/* HOST */}
           <section className="br-host-section">
