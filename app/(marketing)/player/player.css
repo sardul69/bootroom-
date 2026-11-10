@@ -1318,3 +1318,63 @@
     font-size: 12px !important;
   }
 }
+
+
+
+/* TURFZY unified profile settings menu */
+.tz-profile-menu {
+  position: relative;
+  display: inline-block;
+  z-index: 50;
+}
+
+.tz-profile-menu summary {
+  cursor: pointer;
+  list-style: none;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(198, 164, 92, .45);
+  border-radius: 50%;
+  color: #d7bd80;
+  background: rgba(10, 13, 12, .9);
+  letter-spacing: 2px;
+}
+
+.tz-profile-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.tz-profile-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  min-width: 190px;
+  padding: 8px;
+  border: 1px solid rgba(198, 164, 92, .35);
+  border-radius: 12px;
+  background: #111512;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, .45);
+}
+
+.tz-profile-menu-panel a,
+.tz-profile-menu-panel button {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #e8e5dc;
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tz-profile-menu-panel a:hover,
+.tz-profile-menu-panel button:hover {
+  background: rgba(198, 164, 92, .12);
+  color: #d7bd80;
+}

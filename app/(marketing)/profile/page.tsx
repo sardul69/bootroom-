@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import PlayerDashboard from "./PlayerDashboard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -198,75 +199,9 @@ export default async function ProfilePage() {
   return (
     <main className="page">
       <div className="container" style={{ maxWidth: 900, margin: "0 auto" }}>
-        <header style={{ padding: "28px 0 18px" }}>
-          <p className="label">TURFZY / PLAYER HUB</p>
-          <h1 className="display" style={{ fontSize: "clamp(36px, 7vw, 58px)" }}>
-            YOUR GAME.
-            <br />
-            YOUR IDENTITY.
-          </h1>
-          <p className="muted">Your football life, all in one place.</p>
-        </header>
+        <PlayerDashboard />
 
-        <section
-          className="panel"
-          style={{
-            padding: 24,
-            display: "flex",
-            alignItems: "center",
-            gap: 18,
-            flexWrap: "wrap",
-          }}
-        >
-          {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt="Player avatar"
-              width={88}
-              height={88}
-              style={{
-                borderRadius: "50%",
-                objectFit: "cover",
-                border: "2px solid #a3e635",
-              }}
-            />
-          ) : (
-            <div
-              aria-label="Player avatar"
-              style={{
-                width: 88,
-                height: 88,
-                borderRadius: "50%",
-                display: "grid",
-                placeItems: "center",
-                background: "#a3e635",
-                color: "#101010",
-                fontSize: 36,
-                fontWeight: 900,
-                flexShrink: 0,
-              }}
-            >
-              {initial}
-            </div>
-          )}
-
-          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-            <p className="label">PLAYER PROFILE</p>
-            <h2 style={{ fontSize: 26, margin: "6px 0" }}>{name}</h2>
-            <p className="muted" style={{ overflowWrap: "anywhere" }}>
-              {user.email}
-            </p>
-            <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-              TURFZY MEMBER
-            </p>
-          </div>
-
-          <Link className="btn green" href="/profile/edit/">
-            EDIT PROFILE
-          </Link>
-        </section>
-
-        <section style={{ marginTop: 32 }}>
+        <section id="booking-history" style={{ marginTop: 32 }}>
           <p className="label">YOUR BOOKING PASSES</p>
           <h2 style={{ fontSize: 29, margin: "8px 0 6px" }}>
             Your confirmed games.
