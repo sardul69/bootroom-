@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 import OwnerOperations from "@/components/owner/OwnerOperations";
 import OwnerAdministrators from "@/components/owner/OwnerAdministrators";
+import OwnerShopManager from "@/components/owner/OwnerShopManager";
 import OwnerCommandSidebar, {
   type OwnerSection,
 } from "@/components/owner/OwnerCommandSidebar";
@@ -1218,9 +1219,12 @@ export default function OwnerConsole({
               FUTURE MODULES
           ================================================= */}
 
+          {activeSection === "marketplace" && (
+            <OwnerShopManager />
+          )}
+
           {(
             [
-              "marketplace",
               "tournaments",
               "reports",
               "settings",

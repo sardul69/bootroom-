@@ -36,6 +36,17 @@ type Wallet = {
   ownedCoupons: OwnedCoupon[];
 };
 
+type ShopProduct = {
+  id: string;
+  name: string;
+  description: string;
+  category: "JERSEY" | "APPAREL" | "ACCESSORY";
+  price_paise: number;
+  image_url: string;
+  sizes: string[];
+  stock_quantity: number;
+};
+
 const inr = (paise: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -56,6 +67,13 @@ export default function MarketplacePage() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"rewards" | "vault" | "activity">("rewards");
   const [filter, setFilter] = useState<"all" | "discounts" | "free">("all");
+
+  // Merchandise state is independent of the rewards wallet.
+  const [products, setProducts] = useState<ShopProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState("");
+  const [productCategory, setProductCategory] = useState("ALL");
+  const [productReload, setProductReload] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -95,6 +113,43 @@ export default function MarketplacePage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadProducts() {
+      try {
+        setProductsLoading(true);
+        setProductsError("");
+
+        const response = await fetch("/api/shop/products", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.error || "Unable to load merchandise.");
+        }
+
+        setProducts(
+          Array.isArray(data.products) ? data.products : []
+        );
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          setProductsError(err.message);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setProductsLoading(false);
+        }
+      }
+    }
+
+    loadProducts();
+    return () => controller.abort();
+  }, [productReload]);
+
   const coupons = useMemo(
     () =>
       (wallet?.coupons || []).filter((coupon) => {
@@ -103,6 +158,16 @@ export default function MarketplacePage() {
         return true;
       }),
     [wallet, filter]
+  );
+
+  const visibleProducts = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          productCategory === "ALL" ||
+          product.category === productCategory
+      ),
+    [products, productCategory]
   );
 
   const availableCount =
@@ -138,8 +203,8 @@ export default function MarketplacePage() {
             exclusive perks, match discounts and rewards worth playing for.
           </p>
 
-          <a href="#rewards" className="tzbl-hero-cta">
-            EXPLORE THE COLLECTION <span>↘</span>
+          <a href="#merchandise" className="tzbl-hero-cta">
+            EXPLORE THE DROP <span>↘</span>
           </a>
 
           <div className="tzbl-hero-caption">
@@ -174,6 +239,95 @@ export default function MarketplacePage() {
           <span>YOUR CITY. YOUR SQUAD. YOUR GAME.</span>
           <span>THE TURFZY STANDARD · 001</span>
         </div>
+      </section>
+
+      {/* OWNER-UPLOADED MERCHANDISE */}
+      <section className="tzbl-merch" id="merchandise">
+        <div className="tzbl-merch-heading">
+          <div>
+            <span>THE TURFZY DROP / 001</span>
+            <h2>Wear the <em>standard.</em></h2>
+            <p>Official TURFZY merchandise. Released by the owner.</p>
+          </div>
+          <span className="tzbl-merch-index">TZ / SHOP</span>
+        </div>
+
+        <div className="tzbl-merch-filters">
+          {[
+            ["ALL", "ALL"],
+            ["JERSEY", "JERSEYS"],
+            ["APPAREL", "APPAREL"],
+            ["ACCESSORY", "ACCESSORIES"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={productCategory === value ? "active" : ""}
+              aria-pressed={productCategory === value}
+              onClick={() => setProductCategory(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {productsLoading ? (
+          <div className="tzbl-merch-state">
+            <div className="tzbl-loader" />
+            <p>PREPARING THE COLLECTION</p>
+          </div>
+        ) : productsError ? (
+          <div className="tzbl-merch-state">
+            <h3>Collection temporarily unavailable.</h3>
+            <p>{productsError}</p>
+            <button
+              type="button"
+              onClick={() => setProductReload((value) => value + 1)}
+            >
+              TRY AGAIN ↗
+            </button>
+          </div>
+        ) : visibleProducts.length === 0 ? (
+          <div className="tzbl-merch-state">
+            <h3>The next drop is being prepared.</h3>
+            <p>Official merchandise will appear here when released.</p>
+          </div>
+        ) : (
+          <div className="tzbl-merch-grid">
+            {visibleProducts.map((product) => (
+              <article className="tzbl-merch-card" key={product.id}>
+                <div className="tzbl-merch-image">
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    loading="lazy"
+                  />
+                  <span>{product.category}</span>
+                </div>
+
+                <div className="tzbl-merch-info">
+                  <h3>{product.name}</h3>
+
+                  {product.description && (
+                    <p>{product.description}</p>
+                  )}
+
+                  <strong>{inr(product.price_paise)}</strong>
+
+                  {product.sizes.length > 0 && (
+                    <small>
+                      SIZES · {product.sizes.join(" / ")}
+                    </small>
+                  )}
+
+                  <small>
+                    {product.stock_quantity} IN STOCK
+                  </small>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="tzbl-wallet">
@@ -654,6 +808,183 @@ export default function MarketplacePage() {
           font-weight: 900;
           letter-spacing: 1.5px;
         }
+
+        /* Merchandise */
+        .tzbl-merch {
+          width: min(1180px, calc(100% - 44px));
+          margin: 0 auto;
+          padding: 58px 0 48px;
+          border-bottom: 1px solid rgba(210,183,121,.16);
+        }
+        .tzbl-merch-heading {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 15px;
+          margin-bottom: 25px;
+        }
+        .tzbl-merch-heading > div > span {
+          color: var(--gold);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 2px;
+        }
+        .tzbl-merch-heading h2 {
+          margin: 10px 0 7px;
+          color: #f5f1e8;
+          font-size: clamp(32px, 5vw, 52px);
+          letter-spacing: -2px;
+        }
+        .tzbl-merch-heading h2 em {
+          color: var(--gold);
+          font-style: normal;
+        }
+        .tzbl-merch-heading p {
+          margin: 0;
+          color: #9e978a;
+          font-size: 11px;
+        }
+        .tzbl-merch-index {
+          color: #8f7b51;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          white-space: nowrap;
+        }
+        .tzbl-merch-filters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          margin-bottom: 20px;
+        }
+        .tzbl-merch-filters button {
+          padding: 9px 14px;
+          border: 1px solid rgba(210,183,121,.22);
+          border-radius: 2px;
+          background: transparent;
+          color: #a99b7d;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          cursor: pointer;
+          transition: .2s ease;
+        }
+        .tzbl-merch-filters button.active,
+        .tzbl-merch-filters button:hover {
+          border-color: var(--gold);
+          background: rgba(210,183,121,.12);
+          color: var(--gold-light);
+        }
+        .tzbl-merch-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 14px;
+        }
+        .tzbl-merch-card {
+          min-width: 0;
+          overflow: hidden;
+          border: 1px solid rgba(210,183,121,.19);
+          background: linear-gradient(145deg, rgba(255,255,255,.035), transparent 50%), #0d0c09;
+          transition: transform .25s, border-color .25s;
+        }
+        .tzbl-merch-card:hover {
+          transform: translateY(-4px);
+          border-color: rgba(210,183,121,.65);
+        }
+        .tzbl-merch-image {
+          position: relative;
+          overflow: hidden;
+          aspect-ratio: 4 / 5;
+          background: #171510;
+        }
+        .tzbl-merch-image img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform .5s;
+        }
+        .tzbl-merch-card:hover .tzbl-merch-image img {
+          transform: scale(1.035);
+        }
+        .tzbl-merch-image > span {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          padding: 6px 8px;
+          background: rgba(210,183,121,.94);
+          color: #090806;
+          font-size: 7px;
+          font-weight: 950;
+          letter-spacing: 1px;
+        }
+        .tzbl-merch-info {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 13px;
+        }
+        .tzbl-merch-info h3 {
+          margin: 0;
+          color: #f5f1e8;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+        .tzbl-merch-info p {
+          display: -webkit-box;
+          overflow: hidden;
+          min-height: 30px;
+          margin: 0;
+          color: #9e978a;
+          font-size: 10px;
+          line-height: 1.5;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+        }
+        .tzbl-merch-info strong {
+          color: var(--gold-light);
+          font-size: 17px;
+          font-weight: 950;
+        }
+        .tzbl-merch-info small {
+          color: #8e826b;
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: .7px;
+        }
+        .tzbl-merch-state {
+          min-height: 160px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 25px;
+          border: 1px solid rgba(210,183,121,.2);
+          background: rgba(255,255,255,.018);
+          text-align: center;
+        }
+        .tzbl-merch-state h3 {
+          margin: 0 0 7px;
+          color: #eee6d5;
+          font-size: 17px;
+        }
+        .tzbl-merch-state p {
+          color: #a69a85;
+          font-size: 11px;
+          line-height: 1.6;
+        }
+        .tzbl-merch-state button {
+          padding: 10px 15px;
+          border: 1px solid rgba(210,183,121,.5);
+          background: rgba(210,183,121,.08);
+          color: var(--gold-light);
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          cursor: pointer;
+        }
+
         .tzbl-wallet {
           position: relative;
           overflow: hidden;
@@ -1106,11 +1437,12 @@ export default function MarketplacePage() {
           .tzbl-hero-copy { width: 62%; }
           .tzbl-art { right: -60px; transform: translateY(-50%) scale(.82); }
           .tzbl-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+          .tzbl-merch-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
         }
 
         @media(max-width:600px) {
           .tzbl-header,.tzbl-hero,.tzbl-wallet,.tzbl-stats,
-          .tzbl-collection,.tzbl-banner,.tzbl-footer {
+          .tzbl-collection,.tzbl-banner,.tzbl-footer,.tzbl-merch {
             width: calc(100% - 28px);
           }
           .tzbl-header { height: 60px; }
@@ -1123,7 +1455,7 @@ export default function MarketplacePage() {
           .tzbl-hero-copy { width: 100%; }
           .tzbl-hero h1 { font-size: clamp(49px,12.5vw,66px); letter-spacing: -3px; }
           .tzbl-hero-copy>p { max-width: 350px; font-size: 12px; }
-          .tzbl-proof { gap: 12px; font-size: 7px; }
+          .tzbl-hero-caption { gap: 12px; font-size: 7px; }
           .tzbl-art {
             top: auto;
             right: 50%;
@@ -1133,6 +1465,15 @@ export default function MarketplacePage() {
             transform: translateX(50%) scale(.8);
           }
           .tzbl-hero-bottom { font-size: 6px; letter-spacing: .5px; }
+          .tzbl-merch { padding: 42px 0 35px; }
+          .tzbl-merch-heading h2 { font-size: 34px; }
+          .tzbl-merch-heading p { font-size: 10px; }
+          .tzbl-merch-index { font-size: 8px; }
+          .tzbl-merch-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+          .tzbl-merch-info { gap: 6px; padding: 10px; }
+          .tzbl-merch-info h3 { font-size: 11px; }
+          .tzbl-merch-info p { font-size: 9px; }
+          .tzbl-merch-info strong { font-size: 15px; }
           .tzbl-wallet { flex-wrap: wrap; gap: 13px; padding: 19px 15px; }
           .tzbl-wallet-symbol { width: 42px; height: 42px; flex-basis: 42px; font-size: 21px; }
           .tzbl-wallet-copy { flex: 1; }
