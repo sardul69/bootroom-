@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation";
    A layered emerald-glass navigation system.
    ============================================================ */
 
-type IconName = "home" | "games" | "turfs" | "players" | "search" | "profile";
+type IconName = "home" | "games" | "turfs" | "players" | "search" | "profile" | "shop";
 
 type NavItem = {
   label: string;
@@ -21,6 +21,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/", icon: "home" },
   { label: "Matches", href: "/matches", icon: "games" },
+  { label: "Shop", href: "/marketplace", icon: "shop" },
   { label: "Turfs", href: "/turfs", icon: "turfs" },
   { label: "Profile", href: "/profile", icon: "profile" },
 ];
@@ -81,6 +82,15 @@ function NavIcon({ name }: { name: IconName }) {
         <svg {...common}>
           <circle cx="10.5" cy="10.5" r="6.7" />
           <path d="m15.5 15.5 5 5" />
+        </svg>
+      );
+
+    case "shop":
+      return (
+        <svg {...common}>
+          <path d="M5 8h14l1 13H4L5 8Z" />
+          <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+          <path d="M9 13v.01M15 13v.01" />
         </svg>
       );
 
@@ -688,8 +698,8 @@ export default function PlayerNavigation() {
           }
 
           .tz-crystal-tab__label {
-            font-size: 9px;
-            letter-spacing: 0.035em;
+            font-size: 8.5px;
+            letter-spacing: 0.02em;
           }
 
           .tz-crystal-tab__gem {
@@ -710,7 +720,7 @@ export default function PlayerNavigation() {
           }
 
           .tz-crystal-tab__label {
-            font-size: 8px;
+            font-size: 7.5px;
             letter-spacing: 0;
           }
 
