@@ -20,15 +20,8 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/", icon: "home" },
-  { label: "Games", href: "/matches", icon: "games" },
+  { label: "Matches", href: "/matches", icon: "games" },
   { label: "Turfs", href: "/turfs", icon: "turfs" },
-  { label: "Players", href: "/player", icon: "players" },
-  {
-    label: "Squad Finder",
-    href: "/squad-finder",
-    icon: "search",
-    desktopOnly: true,
-  },
   { label: "Profile", href: "/profile", icon: "profile" },
 ];
 
