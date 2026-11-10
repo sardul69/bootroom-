@@ -80,12 +80,6 @@ export default async function Home() {
               />
             </Link>
 
-            <nav className="br-navlinks" aria-label="Main navigation">
-              <Link href="/matches">Matches</Link>
-              <Link href="/turfs">Turfs</Link>
-              <Link href="/owner">Host a game</Link>
-            </nav>
-
             <div className="br-nav-actions">
               {user ? (
                 <Link
@@ -110,9 +104,6 @@ export default async function Home() {
                 </Link>
               )}
 
-              <Link href="/matches" className="br-nav-button">
-                Find a game
-              </Link>
             </div>
           </div>
         </header>
@@ -320,23 +311,6 @@ export default async function Home() {
 
 
 
-          {/* HOST */}
-          <section className="br-host-section">
-            <div className="br-container">
-              <div className="br-host">
-                <div>
-                  <div className="br-kicker">BRING PEOPLE TOGETHER</div>
-                  <h2>HAVE A GAME IN MIND?</h2>
-                  <p>
-                    Host a game and bring your football community together.
-                  </p>
-                </div>
-                <Link href="/owner" className="br-button br-button-green">
-                  CREATE A GAME
-                </Link>
-              </div>
-            </div>
-          </section>
         </main>
 
         <footer className="br-footer">
