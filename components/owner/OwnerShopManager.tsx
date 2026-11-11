@@ -823,26 +823,20 @@ export default function OwnerShopManager() {
             onChange={(event) => setSearch(event.target.value)}
           />
 
-          <div className="tz-filters">
-            {[
-              ["ALL", "All products"],
-              ["PUBLISHED", "Published"],
-              ["DRAFT", "Drafts"],
-              ["ARCHIVED", "Archived"],
-              ["JERSEY", "Jerseys"],
-              ["APPAREL", "Apparel"],
-              ["ACCESSORY", "Accessories"],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                className={filter === value ? "selected" : ""}
-                onClick={() => setFilter(value)}
-              >
-                {label}
-                {filter === value && <span>●</span>}
-              </button>
-            ))}
-          </div>
+          <select
+            className="tz-catalogue-filter"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            aria-label="Filter products"
+          >
+            <option value="ALL">All products</option>
+            <option value="PUBLISHED">Published</option>
+            <option value="DRAFT">Drafts</option>
+            <option value="ARCHIVED">Archived</option>
+            <option value="JERSEY">Jerseys</option>
+            <option value="APPAREL">Apparel</option>
+            <option value="ACCESSORY">Accessories</option>
+          </select>
 
           <div className="tz-product-stack">
             {loading ? (
@@ -2120,7 +2114,26 @@ export default function OwnerShopManager() {
           box-shadow: 0 0 0 2px rgba(217, 189, 123, .07);
         }
 
-        .tz-search { margin: 15px 0; }
+        .tz-search { margin: 15px 0; }\n
+        .tz-catalogue-filter {
+          display: block;
+          width: 100%;
+          min-height: 44px;
+          margin: 15px 0;
+          padding: 10px 12px;
+          color: var(--gold);
+          background: #111a14;
+          border: 1px solid var(--line);
+          border-radius: 4px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .tz-catalogue-filter option {
+          color: #e8ecdf;
+          background: #111a14;
+        }
+
 
         .tz-filters {
           display: grid;
