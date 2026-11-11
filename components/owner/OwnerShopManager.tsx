@@ -187,6 +187,7 @@ export default function OwnerShopManager() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const [editing, setEditing] = useState<Product | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<EditorForm>(EMPTY_FORM);
   const [tab, setTab] = useState<Tab>("identity");
   const [search, setSearch] = useState("");
@@ -307,6 +308,7 @@ export default function OwnerShopManager() {
 
   function resetEditor() {
     setEditing(null);
+    setIsCreating(false);
     setForm(EMPTY_FORM);
     setVariants([]);
     setTab("identity");
@@ -319,12 +321,14 @@ export default function OwnerShopManager() {
     setMessage("");
     setErrorMessage("");
     setEditing(null);
+    setIsCreating(true);
   }
 
   function openEdit(product: Product) {
     const item = normaliseProduct(product);
 
     setEditing(item);
+    setIsCreating(true);
     setForm({
       name: item.name ?? "",
       description: item.description ?? "",
@@ -878,7 +882,7 @@ export default function OwnerShopManager() {
         </aside>
 
         <main className="tz-editor">
-          {!editing && form.name === "" ? (
+          {!isCreating && !editing ? (
             <div className="tz-welcome">
               <div className="tz-welcome-mark">T</div>
               <div className="tz-kicker">THE TURFZY MARKETPLACE</div>
