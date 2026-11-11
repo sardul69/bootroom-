@@ -336,7 +336,7 @@ export default function OwnerCommandSidebar({
         @media (max-width: 900px) {
           .owner-command-sidebar {
             width: 275px;
-            transform: translateX(-102%);
+            transform: translateX(0);
             transition: transform 220ms ease;
             box-shadow: 18px 0 55px rgba(0, 0, 0, 0.35);
           }
