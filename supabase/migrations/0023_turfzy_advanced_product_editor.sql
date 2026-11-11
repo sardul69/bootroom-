@@ -71,18 +71,30 @@ alter table public.shop_products
   add constraint shop_products_weight_check
     check (weight_kg is null or weight_kg >= 0),
   add constraint shop_products_collection_year_check
-    check (collection_year is null or collection_year between 1900 and 2200);
+    check (collection_year is null or collection_year between 1900 and 2200),
+  add constraint shop_products_sale_period_check
+    check (
+      sale_start_at is null
+      or sale_end_at is null
+      or sale_end_at > sale_start_at
+    ),
+  add constraint shop_products_sale_price_vs_regular_check
+    check (
+      sale_price_paise is null
+      or regular_price_paise is null
+      or sale_price_paise <= regular_price_paise
+    );
 
 -- A SKU must be unique when supplied.
 create unique index if not exists shop_products_sku_unique
-  on public.shop_products (lower(sku))
+  on public.shop_products (lower(trim(sku)))
   where sku is not null and length(trim(sku)) > 0;
 
 -- Keep legacy active flag and new publication status synchronized.
 create or replace function public.sync_shop_product_publication()
 returns trigger
 language plpgsql
-set search_path = public
+set search_path = ''
 as $$
 begin
   if tg_op = 'INSERT' then
