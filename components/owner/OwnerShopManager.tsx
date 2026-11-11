@@ -852,6 +852,7 @@ export default function OwnerShopManager() {
             ) : (
               filteredProducts.map((product) => (
                 <button
+                  type="button"
                   key={product.id}
                   className={`tz-product-card ${
                     editing?.id === product.id ? "active" : ""
