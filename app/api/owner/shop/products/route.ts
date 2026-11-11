@@ -486,6 +486,11 @@ function validateCommon(body: AnyBody): Record<string, unknown> {
     }
   }
 
+  // Keep the legacy marketplace price in sync with the regular price.
+  if (result.regular_price_paise !== undefined) {
+    result.price_paise = result.regular_price_paise;
+  }
+
   for (const key of ["sale_start_at", "sale_end_at"]) {
     if (body[key] !== undefined) {
       if (body[key] === "" || body[key] === null) {
@@ -1149,6 +1154,13 @@ export async function POST(request: NextRequest) {
         "Product name and category are required."
       );
     }
+
+    // The legacy price_paise column is NOT NULL.
+    const legacyPrice = update.regular_price_paise ?? update.price_paise;
+    if (legacyPrice === undefined || legacyPrice === null) {
+      throw new ApiError("Regular price is required.");
+    }
+    update.price_paise = legacyPrice;
 
     admin = createAdminClient();
 
