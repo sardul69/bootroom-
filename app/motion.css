@@ -1,0 +1,381 @@
+
+/* =========================================================
+   TURFZY — CINEMATIC MOTION SYSTEM
+   Version 1.0
+   Additive visual layer — preserves existing functionality.
+   ========================================================= */
+
+:root {
+  --tz-green: #58f58b;
+  --tz-gold: #c9a967;
+  --tz-obsidian: #030604;
+  --tz-ease: cubic-bezier(.2, .75, .25, 1);
+  --tz-spring: cubic-bezier(.2, 1.15, .35, 1);
+}
+
+/* ---------------- ANIMATION KEYFRAMES ---------------- */
+
+@keyframes tz-rise {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes tz-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes tz-hero-drift {
+  from {
+    transform: scale(1.02) translateX(-.3%);
+  }
+  to {
+    transform: scale(1.10) translateX(.4%);
+  }
+}
+
+@keyframes tz-light-sweep {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+    opacity: 0;
+  }
+  20% { opacity: .5; }
+  100% {
+    transform: translateX(150%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+@keyframes tz-pulse {
+  0%, 100% {
+    opacity: .7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes tz-glow {
+  0%, 100% {
+    filter: blur(8px);
+    opacity: .5;
+  }
+  50% {
+    filter: blur(14px);
+    opacity: .95;
+  }
+}
+
+@keyframes tz-meter {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes tz-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ---------------- GLOBAL PAGE ENTRANCE ---------------- */
+
+main {
+  animation: tz-fade .6s ease both;
+}
+
+.page h1,
+.page > .container > h1 {
+  animation: tz-rise .8s var(--tz-ease) both;
+}
+
+.page .panel {
+  animation: tz-rise .7s var(--tz-ease) both;
+}
+
+/* ---------------- HOMEPAGE ---------------- */
+
+.br-home .br-hero {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.br-home .br-hero-image {
+  transform-origin: center;
+  animation: tz-hero-drift 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.br-home .br-hero-content > * {
+  animation: tz-rise .9s var(--tz-ease) both;
+}
+
+.br-home .br-hero-content > :nth-child(1) {
+  animation-delay: .1s;
+}
+
+.br-home .br-hero-content > :nth-child(2) {
+  animation-delay: .2s;
+}
+
+.br-home .br-hero-content > :nth-child(3) {
+  animation-delay: .35s;
+}
+
+.br-home .br-hero-content > :nth-child(4) {
+  animation-delay: .5s;
+}
+
+.br-home .br-live-dot {
+  animation: tz-pulse 1.8s ease-in-out infinite;
+}
+
+/* ---------------- MATCH CARDS ---------------- */
+
+.br-home .br-game-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  transition:
+    transform .4s var(--tz-ease),
+    border-color .4s ease,
+    box-shadow .4s ease;
+}
+
+.br-home .br-game-card::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+
+  content: "";
+  pointer-events: none;
+
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(88, 245, 139, .12) 50%,
+    transparent 80%
+  );
+
+  transform: translateX(-130%);
+}
+
+.br-home .br-game-card:hover {
+  transform: translateY(-8px);
+
+  border-color: rgba(88, 245, 139, .7);
+
+  box-shadow:
+    0 25px 55px rgba(0, 0, 0, .35),
+    0 0 25px rgba(88, 245, 139, .08);
+}
+
+.br-home .br-game-card:hover::after {
+  animation: tz-light-sweep .9s ease both;
+}
+
+/* ---------------- BUTTON INTERACTIONS ---------------- */
+
+button,
+.btn,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn,
+button:not(:disabled) {
+  transition:
+    transform .25s var(--tz-spring),
+    box-shadow .3s ease,
+    border-color .3s ease,
+    background-color .3s ease;
+}
+
+.btn:active,
+button:not(:disabled):active {
+  transform: scale(.975);
+}
+
+/* ---------------- PLAYER NAVIGATION ---------------- */
+
+.tz-crystal-nav {
+  animation: tz-rise .8s var(--tz-ease) .15s both;
+}
+
+.tz-crystal-tab {
+  transition:
+    color .25s ease,
+    transform .3s var(--tz-spring),
+    filter .3s ease;
+}
+
+.tz-crystal-tab:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.15);
+}
+
+.tz-crystal-tab:active {
+  transform: scale(.96);
+}
+
+.tz-crystal-tab--active .tz-crystal-tab__glow {
+  animation: tz-glow 3.5s ease-in-out infinite;
+}
+
+/* ---------------- PLAYER PROFILE ---------------- */
+
+.tz-player {
+  animation: tz-fade .7s ease both;
+}
+
+.tz-player-header,
+.tz-player-toolbar,
+.tz-legend-stage,
+.tz-performance-strip,
+.tz-about-panel,
+.tz-attributes-panel,
+.tz-stats-footer {
+  animation: tz-rise .8s var(--tz-ease) both;
+}
+
+.tz-player-toolbar {
+  animation-delay: .08s;
+}
+
+.tz-legend-stage {
+  animation-delay: .16s;
+}
+
+.tz-performance-strip {
+  animation-delay: .24s;
+}
+
+.tz-about-panel {
+  animation-delay: .32s;
+}
+
+.tz-attributes-panel {
+  animation-delay: .4s;
+}
+
+.tz-stats-footer {
+  animation-delay: .48s;
+}
+
+.tz-legend-card {
+  transition:
+    transform .4s var(--tz-ease),
+    box-shadow .4s ease,
+    filter .4s ease;
+}
+
+.tz-legend-card:hover {
+  transform: translateY(-6px);
+  filter: brightness(1.06);
+
+  box-shadow:
+    0 25px 60px rgba(0, 0, 0, .4),
+    0 0 25px rgba(88, 245, 139, .08);
+}
+
+/* ---------------- PLAYER ATTRIBUTE METERS ---------------- */
+
+.tz-meter {
+  overflow: hidden;
+}
+
+.tz-meter > i {
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: tz-meter 1.2s var(--tz-ease) .3s both;
+}
+
+/* ---------------- MARKETPLACE ---------------- */
+
+.tz-product-stack > *,
+.tz-shop-grid > *,
+.tz-market-grid > * {
+  animation: tz-rise .7s var(--tz-ease) both;
+}
+
+.tz-product-stack > :nth-child(2),
+.tz-shop-grid > :nth-child(2),
+.tz-market-grid > :nth-child(2) {
+  animation-delay: .1s;
+}
+
+.tz-product-stack > :nth-child(3),
+.tz-shop-grid > :nth-child(3),
+.tz-market-grid > :nth-child(3) {
+  animation-delay: .2s;
+}
+
+.tz-product-stack > :nth-child(4),
+.tz-shop-grid > :nth-child(4),
+.tz-market-grid > :nth-child(4) {
+  animation-delay: .3s;
+}
+
+/* ---------------- PREMIUM HOVER EFFECTS ---------------- */
+
+.card,
+.panel {
+  transition:
+    transform .35s var(--tz-ease),
+    border-color .35s ease,
+    box-shadow .35s ease;
+}
+
+.card:hover,
+.panel:hover {
+  border-color: rgba(88, 245, 139, .35);
+
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, .25),
+    0 0 20px rgba(88, 245, 139, .04);
+}
+
+/* ---------------- MOBILE OPTIMISATION ---------------- */
+
+@media (max-width: 700px) {
+  .br-home .br-hero-image {
+    animation-duration: 38s;
+  }
+
+  .tz-legend-card:hover {
+    transform: none;
+  }
+}
+
+@media (hover: none) {
+  .br-home .br-game-card:hover,
+  .tz-crystal-tab:hover {
+    transform: none;
+  }
+}
+
+/* ---------------- ACCESSIBILITY ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .br-home .br-hero-image {
+    animation: none !important;
+    transform: none !important;
+  }
+}
