@@ -3,6 +3,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import HomeLoginGate from "@/components/HomeLoginGate";
+import HomeCinematic from "@/components/HomeCinematic";
+import HomeArrival from "@/components/HomeArrival";
+
 
 export const dynamic = "force-dynamic";
 
@@ -65,9 +68,11 @@ export default async function Home() {
 
   return (
     <>
+      <HomeArrival />
       {!user && <HomeLoginGate />}
 
       <div className="br-home">
+        <HomeCinematic />
         <header className="br-header">
           <div className="br-nav">
             <Link href="/" aria-label="BOOTROOM home" className="br-logo">
@@ -79,6 +84,12 @@ export default async function Home() {
                 priority
               />
             </Link>
+
+            <nav className="br-navlinks" aria-label="Main navigation">
+              <Link href="/matches">Matches</Link>
+              <Link href="/turfs">Turfs</Link>
+              <Link href="/owner">Host a game</Link>
+            </nav>
 
             <div className="br-nav-actions">
               {user ? (
@@ -104,6 +115,9 @@ export default async function Home() {
                 </Link>
               )}
 
+              <Link href="/matches" className="br-nav-button">
+                Find a game
+              </Link>
             </div>
           </div>
         </header>
@@ -140,10 +154,6 @@ export default async function Home() {
                 <Link href="/turfs" className="br-button br-button-outline">
                   EXPLORE TURFS
                 </Link>
-                <Link href="/marketplace" className="br-button br-button-market">
-                  <span aria-hidden="true">✦</span>
-                  ENTER MARKETPLACE
-                </Link>
               </div>
 
               <div className="br-hero-foot">
@@ -158,6 +168,21 @@ export default async function Home() {
               <span>BOOTROOM</span>
             </div>
           </section>
+
+{/* MATCHDAY INFINITE TICKER */}
+<section className="br-matchday-ticker" aria-label="BOOTROOM matchday">
+  <div className="br-matchday-track" aria-hidden="true">
+    {Array.from({ length: 4 }).map((_, index) => (
+      <span key={index}>
+        FIND YOUR SQUAD <i>✳</i>
+        CLAIM YOUR PITCH <i>✳</i>
+        PLAY THE GAME <i>✳</i>
+        KOLKATA UNITED <i>✳</i>
+      </span>
+    ))}
+  </div>
+</section>
+
 
           {/* MATCHES */}
           <section className="br-section">
@@ -309,8 +334,65 @@ export default async function Home() {
             </div>
           </section>
 
+          {/* MARKETPLACE SECRET ENTRANCE */}
+          <section className="br-market-section">
+            <div className="br-container">
+              <Link href="/marketplace" className="br-market-door">
+                <div className="br-market-texture" aria-hidden="true" />
+                <div className="br-market-border">
+                  <div className="br-market-topline">
+                    <span>BOOTROOM EXCLUSIVE</span>
+                    <span>EST. FOR THE PLAYERS</span>
+                  </div>
 
+                  <div className="br-market-center">
+                    <div className="br-market-emblem">
+                      <span>BR</span>
+                    </div>
 
+                    <div className="br-market-overline">
+                      BEYOND THE PITCH
+                    </div>
+
+                    <h2>THE MARKETPLACE</h2>
+
+                    <p>
+                      A different side of the game.
+                      <br />
+                      Reserved for the BOOTROOM community.
+                    </p>
+
+                    <span className="br-market-enter">
+                      DISCOVER THE COLLECTION
+                    </span>
+                  </div>
+
+                  <div className="br-market-bottom">
+                    <span>ACCESS THE VAULT</span>
+                    <span>BOOTROOM COMMUNITY</span>
+                  </div>
+                </div>
+              </Link>
+            </div>
+          </section>
+
+          {/* HOST */}
+          <section className="br-host-section">
+            <div className="br-container">
+              <div className="br-host">
+                <div>
+                  <div className="br-kicker">BRING PEOPLE TOGETHER</div>
+                  <h2>HAVE A GAME IN MIND?</h2>
+                  <p>
+                    Host a game and bring your football community together.
+                  </p>
+                </div>
+                <Link href="/owner" className="br-button br-button-green">
+                  CREATE A GAME
+                </Link>
+              </div>
+            </div>
+          </section>
         </main>
 
         <footer className="br-footer">

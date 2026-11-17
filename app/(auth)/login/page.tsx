@@ -18,7 +18,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/callback`,
+        redirectTo: `${window.location.origin}/callback?next=/`,
       },
     });
     if (error) {
@@ -67,7 +67,7 @@ export default function Login() {
       setLoading(false);
       return;
     }
-    window.location.assign('/turfs');
+    window.location.assign('/');
   }
   return (
     <main
