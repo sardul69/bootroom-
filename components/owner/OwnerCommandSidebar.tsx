@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type OwnerSection =
   | "overview"
@@ -58,52 +59,103 @@ export default function OwnerCommandSidebar({
 }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  function navigate(section: OwnerSection) {
-    onNavigate(section);
+  function closeSidebar() {
     setMobileOpen(false);
   }
 
+  function navigate(section: OwnerSection) {
+    onNavigate(section);
+    closeSidebar();
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeSidebar();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   return (
     <>
+      {/* MOBILE MENU BUTTON */}
       <button
         type="button"
-        className="owner-mobile-menu"
-        aria-label="Open owner navigation"
+        className={`owner-mobile-menu ${mobileOpen ? "is-open" : ""}`}
+        aria-label={
+          mobileOpen ? "Close owner navigation" : "Open owner navigation"
+        }
         aria-expanded={mobileOpen}
+        aria-controls="owner-command-sidebar"
         onClick={() => setMobileOpen((value) => !value)}
       >
-        <span />
-        <span />
-        <span />
+        {mobileOpen ? (
+          <span className="owner-menu-close">×</span>
+        ) : (
+          <>
+            <span />
+            <span />
+            <span />
+          </>
+        )}
       </button>
 
+      {/* MOBILE BACKDROP */}
       {mobileOpen && (
         <button
           type="button"
           className="owner-sidebar-backdrop"
           aria-label="Close navigation"
-          onClick={() => setMobileOpen(false)}
+          onClick={closeSidebar}
         />
       )}
 
-      <aside className={`owner-command-sidebar ${mobileOpen ? "is-open" : ""}`}>
+      {/* SIDEBAR */}
+      <aside
+        id="owner-command-sidebar"
+        className={`owner-command-sidebar ${
+          mobileOpen ? "is-open" : ""
+        }`}
+        aria-label="Owner command navigation"
+        aria-hidden={!mobileOpen && undefined}
+      >
+        {/* BRAND */}
         <div className="owner-sidebar-brand">
           <div className="owner-brand-emblem">♛</div>
+
           <div>
             <div className="owner-brand-name">BOOTROOM</div>
             <div className="owner-brand-caption">OWNER COMMAND</div>
           </div>
+
+          <button
+            type="button"
+            className="owner-sidebar-close"
+            aria-label="Close navigation"
+            onClick={closeSidebar}
+          >
+            ×
+          </button>
         </div>
 
+        {/* ACCESS STATUS */}
         <div className="owner-sidebar-access">
           <span className="owner-access-dot" />
           PRIVILEGED SESSION
         </div>
 
+        {/* NAVIGATION */}
         <nav className="owner-sidebar-nav" aria-label="Owner navigation">
           {groups.map((group) => (
             <div className="owner-nav-group" key={group.title}>
               <div className="owner-nav-heading">{group.title}</div>
+
               {group.items.map((item) => (
                 <button
                   key={item.id}
@@ -119,7 +171,9 @@ export default function OwnerCommandSidebar({
                   <span className="owner-nav-icon" aria-hidden="true">
                     {item.icon}
                   </span>
+
                   <span>{item.label}</span>
+
                   {activeSection === item.id && (
                     <span className="owner-nav-indicator" />
                   )}
@@ -129,6 +183,7 @@ export default function OwnerCommandSidebar({
           ))}
         </nav>
 
+        {/* FOOTER */}
         <div className="owner-sidebar-footer">
           <div className="owner-footer-line" />
           <div className="owner-footer-title">THE FIVE. ONE CREST.</div>
@@ -146,7 +201,9 @@ export default function OwnerCommandSidebar({
           flex-direction: column;
           width: 258px;
           padding: 27px 17px 18px;
+          overflow-x: hidden;
           overflow-y: auto;
+          overscroll-behavior: contain;
           color: #e9eee9;
           background:
             radial-gradient(
@@ -169,6 +226,7 @@ export default function OwnerCommandSidebar({
         .owner-brand-emblem {
           display: grid;
           place-items: center;
+          flex: 0 0 39px;
           width: 39px;
           height: 39px;
           color: #d9bd7b;
@@ -329,41 +387,73 @@ export default function OwnerCommandSidebar({
         }
 
         .owner-mobile-menu,
+        .owner-sidebar-close,
         .owner-sidebar-backdrop {
           display: none;
         }
 
         @media (max-width: 900px) {
           .owner-command-sidebar {
-            width: 275px;
-            transform: translateX(-102%);
-            transition: transform 220ms ease;
+            z-index: 100;
+            width: min(82vw, 320px);
+            max-width: 320px;
+            transform: translateX(-105%);
+            transition: transform 260ms cubic-bezier(0.2, 0.75, 0.25, 1);
             box-shadow: 18px 0 55px rgba(0, 0, 0, 0.35);
+            visibility: hidden;
+            pointer-events: none;
           }
 
           .owner-command-sidebar.is-open {
             transform: translateX(0);
+            visibility: visible;
+            pointer-events: auto;
+          }
+
+          .owner-sidebar-brand {
+            position: relative;
+            padding-right: 38px;
+          }
+
+          .owner-sidebar-close {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: grid;
+            place-items: center;
+            width: 34px;
+            height: 34px;
+            color: #e7d5a5;
+            border: 1px solid rgba(194, 165, 103, 0.3);
+            border-radius: 9px;
+            background: rgba(255, 255, 255, 0.035);
+            font-size: 25px;
+            line-height: 1;
+            cursor: pointer;
           }
 
           .owner-mobile-menu {
             position: fixed;
-            z-index: 79;
+            z-index: 110;
             top: 13px;
             left: 13px;
             display: flex;
             flex-direction: column;
+            align-items: center;
             justify-content: center;
             gap: 5px;
-            width: 42px;
-            height: 42px;
+            width: 44px;
+            height: 44px;
             padding: 10px;
+            color: #e3d3a9;
             border: 1px solid rgba(194, 165, 103, 0.35);
             border-radius: 10px;
             background: #0b120e;
             cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
           }
 
-          .owner-mobile-menu span {
+          .owner-mobile-menu span:not(.owner-menu-close) {
             display: block;
             width: 100%;
             height: 2px;
@@ -371,13 +461,23 @@ export default function OwnerCommandSidebar({
             background: #e3d3a9;
           }
 
+          .owner-menu-close {
+            font-size: 27px;
+            line-height: 20px;
+          }
+
           .owner-sidebar-backdrop {
             position: fixed;
-            z-index: 78;
+            z-index: 99;
             inset: 0;
             display: block;
+            width: 100%;
+            height: 100%;
+            padding: 0;
             border: 0;
             background: rgba(0, 0, 0, 0.62);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
           }
         }
       `}</style>
