@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import HomeLoginGate from "@/components/HomeLoginGate";
+import HomeMotion from "@/components/HomeMotion";
+
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +70,7 @@ export default async function Home() {
       {!user && <HomeLoginGate />}
 
       <div className="br-home">
+        <HomeMotion />
         <header className="br-header">
           <div className="br-nav">
             <Link href="/" aria-label="BOOTROOM home" className="br-logo">
@@ -163,6 +166,21 @@ export default async function Home() {
               <span>BOOTROOM</span>
             </div>
           </section>
+
+{/* MATCHDAY INFINITE TICKER */}
+<section className="br-matchday-ticker" aria-label="BOOTROOM matchday">
+  <div className="br-matchday-track" aria-hidden="true">
+    {Array.from({ length: 4 }).map((_, index) => (
+      <span key={index}>
+        FIND YOUR SQUAD <i>✳</i>
+        CLAIM YOUR PITCH <i>✳</i>
+        PLAY THE GAME <i>✳</i>
+        KOLKATA UNITED <i>✳</i>
+      </span>
+    ))}
+  </div>
+</section>
+
 
           {/* MATCHES */}
           <section className="br-section">

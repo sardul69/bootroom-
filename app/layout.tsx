@@ -1,6 +1,7 @@
 
 import type { Metadata } from "next";
 import "./globals.css";
+import "./motion.css";
 import PlayerNavigation from "@/components/PlayerNavigation";
 
 export const metadata: Metadata = {

@@ -2380,3 +2380,838 @@ nav[aria-label="Main navigation"] a {
             scroll-behavior: auto !important;
           }
         }
+
+/* ============================================================
+   BOOTROOM — CINEMATIC HOMEPAGE EXPERIENCE
+   Version 2.0
+   Obsidian / Emerald / Antique Gold
+   ============================================================ */
+
+:root {
+  --br-neon: #58f58b;
+  --br-neon-soft: rgba(88, 245, 139, .18);
+  --br-gold: #c9a967;
+  --br-black: #030604;
+  --br-white: #f4f8f4;
+  --br-muted: #9aaba0;
+  --br-ease: cubic-bezier(.2, .75, .25, 1);
+  --br-spring: cubic-bezier(.2, 1.1, .3, 1);
+}
+
+/* ------------------------------------------------------------
+   01. SCROLL PROGRESS
+   ------------------------------------------------------------ */
+
+.br-scroll-progress {
+  position: fixed;
+  z-index: 99999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(
+    90deg,
+    #1c9e52,
+    #58f58b,
+    #d9ff70,
+    #c9a967
+  );
+  box-shadow:
+    0 0 8px rgba(88,245,139,.8),
+    0 0 22px rgba(88,245,139,.35);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------
+   02. PAGE ATMOSPHERE
+   ------------------------------------------------------------ */
+
+.br-home {
+  position: relative;
+  isolation: isolate;
+  background: #030604;
+}
+
+.br-home main {
+  position: relative;
+}
+
+.br-home main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .12;
+  background-image:
+    radial-gradient(rgba(255,255,255,.25) .5px, transparent .5px);
+  background-size: 5px 5px;
+}
+
+/* ------------------------------------------------------------
+   03. CINEMATIC HERO
+   ------------------------------------------------------------ */
+
+.br-home .br-hero {
+  position: relative;
+  min-height: min(850px, 100svh);
+  isolation: isolate;
+  overflow: hidden;
+  background: #030604;
+}
+
+.br-home .br-hero-image {
+  transform:
+    translate3d(0, var(--br-parallax, 0px), 0)
+    scale(1.04);
+  transform-origin: center;
+  will-change: transform;
+  filter: saturate(.9) contrast(1.08);
+}
+
+.br-home .br-hero-shade {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(2,7,4,.96) 0%,
+      rgba(2,7,4,.82) 36%,
+      rgba(2,7,4,.38) 72%,
+      rgba(2,7,4,.23) 100%
+    ),
+    linear-gradient(
+      0deg,
+      #030604 0%,
+      transparent 38%,
+      rgba(0,0,0,.22) 100%
+    ) !important;
+}
+
+.br-home .br-hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  opacity: .17;
+  background-image:
+    linear-gradient(
+      rgba(255,255,255,.07) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255,255,255,.07) 1px,
+      transparent 1px
+    );
+  background-size: 76px 76px;
+  mask-image: linear-gradient(
+    90deg,
+    black,
+    transparent 75%
+  );
+}
+
+.br-home .br-hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: min(65vw, 850px);
+  aspect-ratio: 1;
+  right: -15%;
+  top: -5%;
+  border: 1px solid rgba(88,245,139,.15);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 35px rgba(88,245,139,.025),
+    0 0 0 75px rgba(88,245,139,.018),
+    inset 0 0 90px rgba(88,245,139,.06);
+  animation: br-orbit 38s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes br-orbit {
+  to { transform: rotate(360deg); }
+}
+
+.br-home .br-hero-content {
+  position: relative;
+  z-index: 3;
+  animation: br-hero-arrival 1.2s var(--br-ease) both;
+}
+
+@keyframes br-hero-arrival {
+  from {
+    opacity: 0;
+    transform: translateY(45px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.br-home .br-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 15px;
+  border: 1px solid rgba(88,245,139,.25);
+  background: rgba(4,15,8,.48);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.br-home .br-live-dot {
+  box-shadow:
+    0 0 8px var(--br-neon),
+    0 0 22px rgba(88,245,139,.7);
+  animation: br-live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes br-live-pulse {
+  0%, 100% {
+    opacity: .7;
+    transform: scale(.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+}
+
+.br-home .br-hero h1 {
+  position: relative;
+  font-size: clamp(58px, 9.4vw, 126px);
+  font-weight: 1000;
+  line-height: .87;
+  letter-spacing: -.075em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 0 10px 45px rgba(0,0,0,.5);
+}
+
+.br-home .br-hero h1 span {
+  display: inline-block;
+  color: var(--br-neon);
+  background: linear-gradient(
+    110deg,
+    #58f58b 10%,
+    #d9ff70 48%,
+    #58f58b 88%
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: br-text-shimmer 7s linear infinite;
+}
+
+@keyframes br-text-shimmer {
+  to { background-position: 200% center; }
+}
+
+.br-home .br-hero-content > p {
+  color: rgba(235,244,237,.8);
+  max-width: 450px;
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.br-home .br-hero-foot {
+  border-top-color: rgba(255,255,255,.16);
+}
+
+/* ------------------------------------------------------------
+   04. HERO BUTTONS
+   ------------------------------------------------------------ */
+
+.br-home .br-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 54px;
+  border-radius: 3px;
+  transition:
+    transform .4s var(--br-spring),
+    box-shadow .35s ease,
+    border-color .35s ease,
+    filter .35s ease;
+}
+
+.br-home .br-button::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -30%;
+  bottom: -30%;
+  left: -65%;
+  width: 38%;
+  transform: skewX(-23deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255,255,255,.45),
+    transparent
+  );
+  transition: left .75s ease;
+}
+
+.br-home .br-button:hover {
+  transform: translateY(-5px) scale(1.025);
+  filter: brightness(1.12);
+}
+
+.br-home .br-button:hover::after {
+  left: 135%;
+}
+
+.br-home .br-button-green {
+  box-shadow:
+    0 8px 25px rgba(88,245,139,.15),
+    inset 0 1px 0 rgba(255,255,255,.25);
+}
+
+.br-home .br-button-green:hover {
+  box-shadow:
+    0 15px 40px rgba(88,245,139,.28),
+    0 0 25px rgba(88,245,139,.16);
+}
+
+.br-home .br-button-outline:hover {
+  background: rgba(88,245,139,.08);
+  border-color: var(--br-neon);
+}
+
+.br-home .br-button-market:hover {
+  box-shadow:
+    0 15px 40px rgba(201,169,103,.17),
+    0 0 25px rgba(201,169,103,.12);
+}
+
+/* ------------------------------------------------------------
+   05. HERO INDEX
+   ------------------------------------------------------------ */
+
+.br-home .br-hero-index {
+  animation: br-index-arrival 1.5s .5s both;
+}
+
+@keyframes br-index-arrival {
+  from {
+    opacity: 0;
+    transform: translateX(25px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.br-home .br-index-line {
+  position: relative;
+  overflow: hidden;
+}
+
+.br-home .br-index-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: white;
+  transform: translateX(-100%);
+  animation: br-index-line 2.5s 1.2s infinite;
+}
+
+@keyframes br-index-line {
+  to { transform: translateX(100%); }
+}
+
+/* ------------------------------------------------------------
+   06. MATCHDAY MARQUEE
+   ------------------------------------------------------------ */
+
+.br-matchday-ticker {
+  position: relative;
+  z-index: 4;
+  overflow: hidden;
+  padding: 17px 0;
+  border-block: 1px solid rgba(88,245,139,.2);
+  background:
+    linear-gradient(
+      90deg,
+      #061009,
+      #0a180e,
+      #061009
+    );
+}
+
+.br-matchday-track {
+  display: flex;
+  width: max-content;
+  animation: br-marquee 34s linear infinite;
+}
+
+.br-matchday-track span {
+  display: flex;
+  align-items: center;
+  gap: 27px;
+  padding-right: 27px;
+  white-space: nowrap;
+  color: rgba(238,247,240,.82);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 3px;
+}
+
+.br-matchday-track i {
+  color: var(--br-neon);
+  font-size: 15px;
+  font-style: normal;
+}
+
+@keyframes br-marquee {
+  to { transform: translateX(-50%); }
+}
+
+.br-matchday-ticker:hover .br-matchday-track {
+  animation-play-state: paused;
+}
+
+/* ------------------------------------------------------------
+   07. SECTION HEADINGS
+   ------------------------------------------------------------ */
+
+.br-home .br-section-heading h2,
+.br-home .br-how-heading h2 {
+  letter-spacing: -.065em;
+  text-wrap: balance;
+}
+
+.br-home .br-section-heading h2 span {
+  display: inline-block;
+  animation: br-dot-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes br-dot-pulse {
+  0%, 100% { opacity: .6; }
+  50% { opacity: 1; text-shadow: 0 0 20px var(--br-neon); }
+}
+
+.br-home .br-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.br-home .br-kicker::before {
+  content: "";
+  display: inline-block;
+  width: 24px;
+  height: 1px;
+  background: var(--br-neon);
+  box-shadow: 0 0 10px var(--br-neon);
+}
+
+/* ------------------------------------------------------------
+   08. SCROLL REVEAL
+   ------------------------------------------------------------ */
+
+.br-home .br-reveal {
+  opacity: 0;
+  transform: translate3d(0, 40px, 0) scale(.985);
+  filter: blur(5px);
+  transition:
+    opacity .85s ease,
+    transform .95s var(--br-ease),
+    filter .85s ease;
+}
+
+.br-home .br-reveal.br-is-visible {
+  opacity: 1;
+  transform: translate3d(0,0,0) scale(1);
+  filter: blur(0);
+}
+
+.br-home .br-game-card:nth-child(2) {
+  transition-delay: .08s;
+}
+
+.br-home .br-game-card:nth-child(3) {
+  transition-delay: .16s;
+}
+
+.br-home .br-game-card:nth-child(4) {
+  transition-delay: .24s;
+}
+
+.br-home .br-game-card:nth-child(5) {
+  transition-delay: .32s;
+}
+
+.br-home .br-game-card:nth-child(6) {
+  transition-delay: .4s;
+}
+
+/* ------------------------------------------------------------
+   09. MATCH CARDS
+   ------------------------------------------------------------ */
+
+.br-home .br-game-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.1);
+  background:
+    radial-gradient(
+      ellipse at 90% 0%,
+      rgba(88,245,139,.075),
+      transparent 50%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.035),
+      transparent 60%
+    ),
+    #0b110d;
+  transition:
+    transform .45s var(--br-spring),
+    border-color .35s ease,
+    box-shadow .4s ease,
+    background .4s ease;
+}
+
+.br-home .br-game-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  opacity: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 15%,
+    rgba(88,245,139,.11) 50%,
+    transparent 85%
+  );
+  transform: translateX(-100%);
+  transition:
+    transform .8s ease,
+    opacity .3s ease;
+  pointer-events: none;
+}
+
+.br-home .br-game-card:hover {
+  transform: translateY(-10px) scale(1.015);
+  border-color: rgba(88,245,139,.55);
+  box-shadow:
+    0 25px 60px rgba(0,0,0,.4),
+    0 0 30px rgba(88,245,139,.08);
+}
+
+.br-home .br-game-card:hover::before {
+  opacity: 1;
+  transform: translateX(100%);
+}
+
+.br-home .br-card-time {
+  transition: color .3s ease;
+}
+
+.br-home .br-game-card:hover .br-card-time {
+  color: var(--br-neon);
+}
+
+.br-home .br-status-open {
+  box-shadow: 0 0 15px rgba(88,245,139,.08);
+}
+
+.br-home .br-join {
+  transition:
+    letter-spacing .3s ease,
+    text-shadow .3s ease;
+}
+
+.br-home .br-game-card:hover .br-join {
+  letter-spacing: 1.8px;
+  text-shadow: 0 0 12px rgba(88,245,139,.5);
+}
+
+/* ------------------------------------------------------------
+   10. HOW IT WORKS
+   ------------------------------------------------------------ */
+
+.br-home .br-how {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgba(88,245,139,.09),
+      transparent 65%
+    ),
+    #080e0a;
+}
+
+.br-home .br-how::before {
+  content: "BOOTROOM";
+  position: absolute;
+  top: 10%;
+  right: -5%;
+  color: rgba(255,255,255,.018);
+  font-size: clamp(90px, 19vw, 270px);
+  font-weight: 1000;
+  letter-spacing: -.08em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.br-home .br-step {
+  position: relative;
+  transition:
+    transform .45s var(--br-spring),
+    border-color .35s ease,
+    padding .35s ease;
+}
+
+.br-home .br-step:hover {
+  transform: translateY(-8px);
+  border-color: var(--br-neon);
+}
+
+.br-home .br-step > span {
+  display: inline-block;
+  transition: transform .35s var(--br-spring);
+}
+
+.br-home .br-step:hover > span {
+  transform: translateX(8px);
+  text-shadow: 0 0 15px rgba(88,245,139,.5);
+}
+
+.br-home .br-step h3 {
+  transition:
+    color .3s ease,
+    letter-spacing .3s ease;
+}
+
+.br-home .br-step:hover h3 {
+  color: var(--br-neon);
+  letter-spacing: 2px;
+}
+
+/* ------------------------------------------------------------
+   11. EMPTY STATES
+   ------------------------------------------------------------ */
+
+.br-home .br-empty {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgba(88,245,139,.08),
+      transparent 70%
+    ),
+    #0b110d;
+  border-color: rgba(88,245,139,.16);
+}
+
+.br-home .br-empty-mark {
+  animation: br-mark-glow 3s ease-in-out infinite;
+}
+
+@keyframes br-mark-glow {
+  0%, 100% {
+    text-shadow: 0 0 8px rgba(88,245,139,.15);
+  }
+  50% {
+    text-shadow: 0 0 30px rgba(88,245,139,.5);
+  }
+}
+
+/* ------------------------------------------------------------
+   12. FOOTER
+   ------------------------------------------------------------ */
+
+.br-home .br-footer {
+  position: relative;
+  overflow: hidden;
+}
+
+.br-home .br-footer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(88,245,139,.7),
+    rgba(201,169,103,.6),
+    transparent
+  );
+}
+
+.br-home .br-footer-inner img {
+  transition: transform .45s var(--br-spring);
+}
+
+.br-home .br-footer-inner img:hover {
+  transform: rotate(-5deg) scale(1.07);
+}
+
+/* ------------------------------------------------------------
+   13. GLOBAL MICRO-INTERACTIONS
+   ------------------------------------------------------------ */
+
+.br-home a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.br-home a:focus-visible {
+  outline: 2px solid var(--br-neon);
+  outline-offset: 5px;
+}
+
+.br-home .br-text-link {
+  transition:
+    color .3s ease,
+    letter-spacing .3s ease,
+    border-color .3s ease;
+}
+
+.br-home .br-text-link:hover {
+  color: #c8ffd8;
+  letter-spacing: 2px;
+  border-color: var(--br-neon);
+}
+
+/* ------------------------------------------------------------
+   14. MOBILE EXPERIENCE
+   ------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  .br-home .br-hero {
+    min-height: 680px;
+  }
+
+  .br-home .br-hero h1 {
+    letter-spacing: -.065em;
+  }
+}
+
+@media (max-width: 600px) {
+  .br-home .br-hero {
+    min-height: min(780px, 92svh);
+  }
+
+  .br-home .br-hero-image {
+    background-position: 58% center;
+  }
+
+  .br-home .br-hero-shade {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(3,8,5,.94),
+        rgba(3,8,5,.55)
+      ),
+      linear-gradient(
+        0deg,
+        #030604,
+        transparent 60%
+      ) !important;
+  }
+
+  .br-home .br-hero h1 {
+    font-size: clamp(49px, 13.2vw, 76px);
+    line-height: .9;
+    letter-spacing: -.075em;
+  }
+
+  .br-home .br-hero-content > p {
+    font-size: 14px;
+    line-height: 1.85;
+  }
+
+  .br-home .br-hero-actions {
+    gap: 10px;
+  }
+
+  .br-home .br-button {
+    min-height: 48px;
+    padding-inline: 15px;
+    font-size: 9px;
+  }
+
+  .br-home .br-hero::after {
+    width: 95vw;
+    right: -48%;
+    top: 15%;
+  }
+
+  .br-home .br-hero-foot {
+    gap: 12px 18px;
+    margin-top: 38px;
+  }
+
+  .br-matchday-ticker {
+    padding: 13px 0;
+  }
+
+  .br-matchday-track span {
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+
+  .br-home .br-reveal {
+    transform: translate3d(0, 22px, 0);
+    filter: none;
+  }
+
+  .br-home .br-game-card:hover {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------
+   15. TOUCH DEVICES
+   ------------------------------------------------------------ */
+
+@media (hover: none) {
+  .br-home .br-game-card:hover,
+  .br-home .br-button:hover,
+  .br-home .br-step:hover {
+    transform: none;
+  }
+
+  .br-matchday-track {
+    animation-duration: 42s;
+  }
+}
+
+/* ------------------------------------------------------------
+   16. ACCESSIBILITY
+   ------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .br-home *,
+  .br-home *::before,
+  .br-home *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .br-home .br-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
