@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +17,7 @@ export default function HomeArrival() {
 
     try {
       const key = "bootroom-cinematic-arrival-seen";
+
       show =
         navigation?.type === "reload" ||
         !sessionStorage.getItem(key);
@@ -32,19 +34,32 @@ export default function HomeArrival() {
     if (!visible) return;
 
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) {
+      setVisible(false);
+      return;
+    }
+
+    // Never leave visitors trapped behind the intro.
+    const fallback = window.setTimeout(() => {
+      setVisible(false);
+    }, 12000);
 
     video.currentTime = 0;
+
     video.play().catch(() => {
-      // Keep the cinematic screen visible rather than silently skipping it.
+      setVisible(false);
     });
+
+    return () => window.clearTimeout(fallback);
   }, [visible]);
 
   if (!visible) return null;
 
   return (
     <div
-      className={`br-arrival-screen ${ready ? "is-playing" : "is-loading"}`}
+      className={`br-arrival-screen ${
+        ready ? "is-playing" : "is-loading"
+      }`}
       role="presentation"
     >
       <video
@@ -57,6 +72,7 @@ export default function HomeArrival() {
         preload="auto"
         onCanPlay={() => setReady(true)}
         onEnded={() => setVisible(false)}
+        onError={() => setVisible(false)}
       />
 
       <div className="br-arrival-shade" />
