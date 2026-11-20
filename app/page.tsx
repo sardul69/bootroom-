@@ -238,7 +238,7 @@ export default async function Home() {
                     className="br-locker-primary"
                   >
                     <span>ENTER MATCHDAY</span>
-                    <span aria-hidden="true">↗</span>
+                    <span aria-hidden="true"></span>
                   </Link>
 
                   <Link
@@ -343,7 +343,7 @@ export default async function Home() {
                       <span>THE SQUAD</span>
                       <h3>FIND YOUR PEOPLE.</h3>
                     </div>
-                    <span className="br-locker-arrow">↗</span>
+                    <span className="br-locker-arrow"></span>
                   </div>
                 </Link>
 
@@ -382,7 +382,7 @@ export default async function Home() {
                       <span>THE PITCH</span>
                       <h3>CLAIM YOUR GROUND.</h3>
                     </div>
-                    <span className="br-locker-arrow">↗</span>
+                    <span className="br-locker-arrow"></span>
                   </div>
                 </Link>
 
@@ -413,7 +413,7 @@ export default async function Home() {
                       <span>THE VAULT</span>
                       <h3>BEYOND THE PITCH.</h3>
                     </div>
-                    <span className="br-locker-arrow">↗</span>
+                    <span className="br-locker-arrow"></span>
                   </div>
                 </Link>
 
@@ -444,7 +444,7 @@ export default async function Home() {
                       <span>THE HOSTS</span>
                       <h3>CREATE THE GAME.</h3>
                     </div>
-                    <span className="br-locker-arrow">↗</span>
+                    <span className="br-locker-arrow"></span>
                   </div>
                 </Link>
 

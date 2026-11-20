@@ -382,7 +382,7 @@ export default function MarketplacePage() {
                   )}
 
                   <small>{product.stock_quantity} IN STOCK</small>
-                  <span className="tzbl-merch-view">VIEW DETAILS ↗</span>
+                  <span className="tzbl-merch-view">VIEW DETAILS </span>
                 </div>
               </a>
             ))}
@@ -601,7 +601,7 @@ export default function MarketplacePage() {
             {wallet.transactions.map((transaction) => (
               <article key={transaction.id}>
                 <span className="tzbl-list-seal">
-                  {transaction.amount > 0 ? "↗" : "↙"}
+                  {transaction.amount > 0 ? "" : ""}
                 </span>
                 <div>
                   <h3>{transaction.description}</h3>

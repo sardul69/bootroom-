@@ -723,7 +723,7 @@ export default function OwnerConsole({
                     Create games, review sessions and manage cancellations.
                   </span>
 
-                  <b>OPEN GAMES ↗</b>
+                  <b>OPEN GAMES </b>
                 </button>
 
                 <button
@@ -740,7 +740,7 @@ export default function OwnerConsole({
                     Review player profiles, ratings and community records.
                   </span>
 
-                  <b>OPEN PLAYERS ↗</b>
+                  <b>OPEN PLAYERS </b>
                 </button>
 
                 <button
@@ -757,7 +757,7 @@ export default function OwnerConsole({
                     Inspect recorded payment activity and captured totals.
                   </span>
 
-                  <b>OPEN FINANCE ↗</b>
+                  <b>OPEN FINANCE </b>
                 </button>
 
                 <button
@@ -776,7 +776,7 @@ export default function OwnerConsole({
                     Grant or revoke restricted administrator access.
                   </span>
 
-                  <b>MANAGE ACCESS ↗</b>
+                  <b>MANAGE ACCESS </b>
                 </button>
 
                 <button
@@ -795,7 +795,7 @@ export default function OwnerConsole({
                     Review venue suggestions submitted by the community.
                   </span>
 
-                  <b>REVIEW INBOX ↗</b>
+                  <b>REVIEW INBOX </b>
                 </button>
 
                 <button
@@ -812,7 +812,7 @@ export default function OwnerConsole({
                     View saved venues used by game creation.
                   </span>
 
-                  <b>OPEN DIRECTORY ↗</b>
+                  <b>OPEN DIRECTORY </b>
                 </button>
 
               </div>
@@ -1202,7 +1202,7 @@ export default function OwnerConsole({
                             target="_blank"
                             rel="noreferrer"
                           >
-                            OPEN MAP ↗
+                            OPEN MAP 
                           </a>
                         )}
                       </article>

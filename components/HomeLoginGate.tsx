@@ -216,7 +216,7 @@ export default function HomeLoginGate() {
             G
           </span>
           <span>{loading ? "CONNECTING..." : "CONTINUE WITH GOOGLE"}</span>
-          <span className="tz-arrow">↗</span>
+          <span className="tz-arrow"></span>
         </button>
 
         <a className="tz-email" href="/login">

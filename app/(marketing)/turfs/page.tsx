@@ -298,7 +298,7 @@ export default function TurfsPage() {
             </p>
 
             <a className="hero-cta" href="#ground-finder">
-              EXPLORE GROUNDS <span>↘</span>
+              EXPLORE GROUNDS <span></span>
             </a>
           </div>
 
@@ -462,12 +462,12 @@ export default function TurfsPage() {
                 type="button"
                 onClick={() => window.location.reload()}
               >
-                TRY AGAIN ↗
+                TRY AGAIN 
               </button>
             </div>
           ) : filteredTurfs.length === 0 ? (
             <div className="state-panel">
-              <div className="empty-symbol">✳</div>
+              <div className="empty-symbol"></div>
               <h3>No verified grounds found.</h3>
               <p>
                 {query
@@ -485,7 +485,7 @@ export default function TurfsPage() {
                   setLightsOnly(false);
                 }}
               >
-                CLEAR FILTERS ↗
+                CLEAR FILTERS 
               </button>
             </div>
           ) : (
@@ -538,7 +538,7 @@ export default function TurfsPage() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        DIRECTIONS <span>↗</span>
+                        DIRECTIONS <span></span>
                       </a>
 
                       <Link href={`/turfs/${turf.id}`}>
@@ -574,12 +574,12 @@ export default function TurfsPage() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <span className="research-star">✳</span>
+                    <span className="research-star"></span>
                     <span className="research-name">
                       <strong>{lead.name}</strong>
                       <small>{lead.locality} · Not verified</small>
                     </span>
-                    <span className="research-arrow">↗</span>
+                    <span className="research-arrow"></span>
                   </a>
                 ))}
               </div>
@@ -701,7 +701,7 @@ export default function TurfsPage() {
         </section>
 
         <footer className="page-footer">
-          <div className="footer-brand">BOOTROOM<span>✳</span></div>
+          <div className="footer-brand">BOOTROOM<span></span></div>
           <p>YOUR CITY. YOUR SQUAD. YOUR GAME.</p>
           <span className="footer-bottom">MADE FOR THE LOVE OF FOOTBALL · KOLKATA</span>
         </footer>

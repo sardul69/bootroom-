@@ -88,7 +88,7 @@ export default function MarketplaceSection() {
               whiteSpace: "nowrap",
             }}
           >
-            Explore rewards <span aria-hidden="true">↗</span>
+            Explore rewards <span aria-hidden="true"></span>
           </Link>
         </div>
 
@@ -221,7 +221,7 @@ export default function MarketplaceSection() {
                   fontWeight: 800,
                 }}
               >
-                {coupon.coins} coins ↗
+                {coupon.coins} coins 
               </span>
             </Link>
           ))}

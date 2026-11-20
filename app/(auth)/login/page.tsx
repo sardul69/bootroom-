@@ -110,7 +110,7 @@ export default function Login() {
           onClick={google}
           disabled={loading}
         >
-          CONTINUE WITH GOOGLE ↗
+          CONTINUE WITH GOOGLE 
         </button>
         <div
           style={{
