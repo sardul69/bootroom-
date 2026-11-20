@@ -385,7 +385,18 @@ export default function HomeCinematic() {
       ref={heroRef}
       className="br-hero br-cinematic"
     >
-      <div className="br-cinematic-image" />
+      <div className="br-cinematic-image" aria-hidden="true" />
+      <video
+        className="br-cinematic-video"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+      >
+        <source src="/arrival/cinematic-arrival.mp4" type="video/mp4" />
+      </video>
 
       <div className="br-cinematic-overlay" />
 

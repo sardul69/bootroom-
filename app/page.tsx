@@ -4,7 +4,6 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import HomeLoginGate from "@/components/HomeLoginGate";
 import HomeCinematic from "@/components/HomeCinematic";
-import HomeArrival from "@/components/HomeArrival";
 
 export const dynamic = "force-dynamic";
 
@@ -114,8 +113,6 @@ export default async function Home() {
 
   return (
     <>
-      <HomeArrival />
-
       {!user && <HomeLoginGate />}
 
       <div className="br-home br-locker-home">
@@ -484,10 +481,10 @@ export default async function Home() {
             >
               {Array.from({ length: 4 }).map((_, index) => (
                 <span key={index}>
-                  FIND YOUR SQUAD <i>✳</i>
-                  CLAIM YOUR PITCH <i>✳</i>
-                  PLAY THE GAME <i>✳</i>
-                  KOLKATA UNITED <i>✳</i>
+                  FIND YOUR SQUAD <i aria-hidden="true" />
+                  CLAIM YOUR PITCH <i aria-hidden="true" />
+                  PLAY THE GAME <i aria-hidden="true" />
+                  KOLKATA UNITED <i aria-hidden="true" />
                 </span>
               ))}
             </div>

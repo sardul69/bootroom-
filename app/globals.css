@@ -2457,22 +2457,25 @@ nav[aria-label="Main navigation"] a {
 
 .br-cinematic-image {
   position: absolute;
-  z-index: -5;
+  z-index: -6;
   inset: -3%;
-  background-image:
-    linear-gradient(
-      90deg,
-      rgba(2, 7, 4, .96) 0%,
-      rgba(2, 7, 4, .82) 34%,
-      rgba(2, 7, 4, .34) 72%,
-      rgba(2, 7, 4, .5) 100%
-    ),
-    url("/brand/forest-night.png");
+  background:
+    linear-gradient(135deg, #07120b, #030704);
   background-size: cover;
   background-position: center;
+}
+
+.br-cinematic-video {
+  position: absolute;
+  z-index: -5;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: .88;
+  filter: saturate(.78) contrast(1.08);
   transform: scale(1.025);
-  animation: br-cinematic-background 24s ease-in-out infinite alternate;
-  will-change: transform;
 }
 
 .br-cinematic-overlay {
@@ -2973,9 +2976,8 @@ nav[aria-label="Main navigation"] a {
     align-items: center;
   }
 
-  .br-cinematic-image {
-    background-position: 57% center;
-    animation-duration: 32s;
+  .br-cinematic-video {
+    object-position: 58% center;
   }
 
   .br-cinematic-overlay {
@@ -3114,7 +3116,7 @@ nav[aria-label="Main navigation"] a {
 /* ---------- Motion accessibility ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .br-cinematic-image,
+  .br-cinematic-video,
   .br-cinematic-topline i,
   .br-cinematic-scroll i::after,
   .br-heading-line > span {
@@ -4133,7 +4135,13 @@ nav[aria-label="Main navigation"] a {
 }
 
 .br-locker-home .br-matchday-track i {
-  color: #e1c999;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 22px 2px;
+  border: 1px solid #c9a967;
+  transform: rotate(45deg);
+  background: rgba(201,169,103,.18);
   font-style: normal;
 }
 
