@@ -2,6 +2,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import MarketplaceCart from "@/components/MarketplaceCart";
 
 type Coupon = {
   id: string;
@@ -246,7 +248,7 @@ export default function MarketplacePage() {
       </header>
 
       {/* HERO */}
-      <section className="tzbl-hero">
+      <motion.section className="tzbl-hero" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }}>
         <div className="tzbl-hero-copy">
           <div className="tzbl-eyebrow">
             <span /> THE MEMBERS&apos; REWARD VAULT
@@ -281,14 +283,14 @@ export default function MarketplacePage() {
           <div className="tzbl-orbit tzbl-orbit-two" />
           <div className="tzbl-orbit tzbl-orbit-three" />
 
-          <div className="tzbl-coin">
+          <motion.div className="tzbl-coin" animate={{ y: [0, -10, 0], rotate: [-2, 1, -2] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}>
             <div className="tzbl-coin-inner">
               <span>✦</span>
               <strong>T</strong>
               <small>TURFZY</small>
               <i>THE GAME REWARDS YOU</i>
             </div>
-          </div>
+          </motion.div>
 
           <div className="tzbl-art-label label-top">EST. 2026</div>
           <div className="tzbl-art-label label-bottom">EXCLUSIVE PLAYER REWARDS</div>
@@ -300,7 +302,7 @@ export default function MarketplacePage() {
           <span>YOUR CITY. YOUR SQUAD. YOUR GAME.</span>
           <span>THE TURFZY STANDARD · 001</span>
         </div>
-      </section>
+      </motion.section>
 
       {/* OWNER-UPLOADED MERCHANDISE */}
       <section className="tzbl-merch" id="merchandise">
@@ -355,11 +357,17 @@ export default function MarketplacePage() {
         ) : (
           <div className="tzbl-merch-grid">
             {visibleProducts.map((product) => (
-              <a
+              <motion.a
                 className="tzbl-merch-card"
                 href={`/marketplace/${product.id}`}
                 key={product.id}
                 aria-label={`View ${product.name}`}
+                layout
+                initial={{ opacity: 0, y: 34, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                whileHover={{ y: -9, scale: 1.012 }}
+                whileTap={{ scale: 0.985 }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div className="tzbl-merch-image">
                   <img
@@ -384,7 +392,7 @@ export default function MarketplacePage() {
                   <small>{product.stock_quantity} IN STOCK</small>
                   <span className="tzbl-merch-view">VIEW DETAILS </span>
                 </div>
-              </a>
+              </motion.a>
             ))}
           </div>
         )}
@@ -515,9 +523,9 @@ export default function MarketplacePage() {
           </div>
         ) : tab === "rewards" ? (
           coupons.length ? (
-            <div className="tzbl-coupon-grid">
+            <motion.div className="tzbl-coupon-grid" layout>
               {coupons.map((coupon, index) => (
-                <article className="tzbl-coupon-tile" key={coupon.id}>
+                <motion.article className="tzbl-coupon-tile" key={coupon.id} layout initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -7, scale: 1.012 }} transition={{ duration: 0.38, delay: Math.min(index * 0.055, 0.3) }}>
                   <div className="tzbl-coupon-topline">
                     <span>{coupon.is_free_game ? "ULTIMATE REWARD" : "PLAYER PRIVILEGE"}</span>
                     <span>{String(index + 1).padStart(2, "0")}</span>
@@ -555,9 +563,9 @@ export default function MarketplacePage() {
                       SOON
                     </button>
                   </div>
-                </article>
+                </motion.article>
               ))}
-            </div>
+            </motion.div>
           ) : (
             <div className="tzbl-state">
               <h3>The next collection is being prepared.</h3>
@@ -639,6 +647,8 @@ export default function MarketplacePage() {
         </div>
         <a href="/matches">FIND YOUR NEXT GAME</a>
       </section>
+
+      <MarketplaceCart />
 
       <footer className="tzbl-footer">
         <span>© TURFZY 2026</span>
@@ -1795,6 +1805,16 @@ export default function MarketplacePage() {
         }
 
         /* TABLET */
+
+        .tzbl-merch-card, .tzbl-coupon-tile { transform-origin: center bottom; will-change: transform; }
+        .tzbl-merch-image img { transition: transform .8s cubic-bezier(.2,.75,.25,1), filter .5s ease; }
+        .tzbl-merch-card:hover .tzbl-merch-image img { transform: scale(1.065); filter: saturate(1.12) contrast(1.04); }
+        .tzbl-merch-card::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:0; background:linear-gradient(115deg,transparent 25%,rgba(226,197,132,.12) 48%,transparent 68%); transform:translateX(-110%); transition:opacity .3s; }
+        .tzbl-merch-card:hover::after { opacity:1; animation:tzblCardSweep .85s ease; }
+        @keyframes tzblCardSweep { to { transform:translateX(110%); } }
+        @media (prefers-reduced-motion: reduce) {
+          .tz-black-label *, .tz-black-label *::before, .tz-black-label *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; }
+        }
 
         @media(max-width: 900px) {
           .tzbl-hero-copy { width: 62%; }

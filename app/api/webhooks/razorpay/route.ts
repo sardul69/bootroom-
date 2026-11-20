@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendMarketplaceEmail } from "@/lib/marketplace-email";
 import {
   fetchRazorpayOrder,
   fetchRazorpayPayment,
@@ -246,6 +247,155 @@ export async function POST(req: Request) {
       });
 
       return webhookResponse({ error: "Order verification failed." }, 409);
+    }
+
+    // Marketplace receipts are UUIDs without hyphens.
+    // Turf-booking receipts retain their existing format.
+    if (/^[0-9a-f]{32}$/i.test(liveOrder.receipt)) {
+      const compactId = liveOrder.receipt.toLowerCase();
+      const marketplaceOrderId =
+        `${compactId.slice(0, 8)}-${compactId.slice(8, 12)}-${compactId.slice(12, 16)}-${compactId.slice(16, 20)}-${compactId.slice(20)}`;
+
+      const { data: marketplaceOrder, error: marketplaceLookupError } =
+        await admin
+          .from("marketplace_orders")
+          .select("id, razorpay_order_id, total_paise, currency, status")
+          .eq("id", marketplaceOrderId)
+          .maybeSingle();
+
+      if (marketplaceLookupError) {
+        logFailure("Marketplace webhook order lookup failed.", {
+          eventId,
+          orderId,
+          paymentId,
+          message: marketplaceLookupError.message,
+        });
+
+        return webhookResponse(
+          { error: "Marketplace order lookup failed; retry delivery." },
+          500
+        );
+      }
+
+      if (marketplaceOrder) {
+        if (
+          marketplaceOrder.id !== marketplaceOrderId ||
+          marketplaceOrder.razorpay_order_id !== orderId ||
+          marketplaceOrder.currency !== "INR" ||
+          marketplaceOrder.total_paise !== livePayment.amount ||
+          liveOrder.amount !== livePayment.amount
+        ) {
+          logFailure("Marketplace webhook payment mismatch.", {
+            eventId,
+            orderId,
+            paymentId,
+            marketplaceOrderId,
+          });
+
+          return webhookResponse(
+            { error: "Marketplace payment mismatch; manual review required." },
+            409
+          );
+        }
+
+        const { data: finalized, error: finalizeError } = await admin.rpc(
+          "finalize_marketplace_order_webhook",
+          {
+            p_order_id: marketplaceOrderId,
+            p_razorpay_order_id: orderId,
+            p_razorpay_payment_id: paymentId,
+            p_amount_paise: livePayment.amount,
+            p_currency: livePayment.currency,
+          }
+        );
+
+        if (finalizeError || !isRecord(finalized)) {
+          logFailure("Marketplace webhook finalization failed.", {
+            eventId,
+            orderId,
+            paymentId,
+            marketplaceOrderId,
+            message: finalizeError?.message ?? "Invalid RPC response",
+          });
+
+          return webhookResponse(
+            { error: "Marketplace payment finalization failed; retry delivery." },
+            500
+          );
+        }
+
+        if (finalized.ok !== true) {
+          const reason =
+            typeof finalized.reason === "string"
+              ? finalized.reason
+              : "UNKNOWN";
+
+          logFailure("Marketplace payment requires attention.", {
+            eventId,
+            orderId,
+            paymentId,
+            marketplaceOrderId,
+            reason,
+          });
+
+          // A verified captured payment must not be silently discarded.
+          if (
+            reason === "PAYMENT_AFTER_RESERVATION_EXPIRY" ||
+            reason === "STOCK_RECONCILIATION_REQUIRED" ||
+            reason === "RECONCILIATION_REQUIRED"
+          ) {
+            return webhookResponse({
+              ok: true,
+              paymentVerified: true,
+              reconciliationRequired: true,
+              marketplaceOrderId,
+            });
+          }
+
+          return webhookResponse(
+            { error: "Marketplace payment could not be confirmed." },
+            409
+          );
+        }
+
+        // Same idempotency key and payload as checkout verification.
+        // This also allows webhook retries to recover a failed email request.
+        const { data: customerOrder, error: customerOrderError } = await admin
+          .from("marketplace_orders")
+          .select("id,order_number,customer_email")
+          .eq("id", marketplaceOrderId)
+          .eq("status", "PAID")
+          .maybeSingle();
+
+        if (customerOrderError) {
+          logFailure("Marketplace customer notification lookup failed.", {
+            eventId,
+            marketplaceOrderId,
+            message: customerOrderError.message,
+          });
+        } else if (
+          customerOrder &&
+          typeof customerOrder.customer_email === "string" &&
+          customerOrder.customer_email.includes("@")
+        ) {
+          await sendMarketplaceEmail({
+            to: customerOrder.customer_email,
+            subject: `BOOTROOM order ${customerOrder.order_number} confirmed`,
+            heading: "Your order is confirmed.",
+            message: "Your payment has been successfully verified. BOOTROOM has received your order and will update you when it is dispatched.",
+            orderNumber: customerOrder.order_number,
+            idempotencyKey: `marketplace-paid-${customerOrder.id}`,
+          });
+        }
+
+        return webhookResponse({
+          ok: true,
+          paymentVerified: true,
+          marketplaceOrderConfirmed: true,
+          marketplaceOrderId,
+          alreadyFinalized: finalized.already_finalized === true,
+        });
+      }
     }
 
     const {

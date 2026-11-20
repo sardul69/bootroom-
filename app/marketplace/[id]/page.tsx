@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "motion/react";
+import MarketplaceCart from "@/components/MarketplaceCart";
+import { addMarketplaceCartItem } from "@/lib/marketplace/cart";
 
 type ShopProduct = {
   id: string;
@@ -30,6 +33,7 @@ export default function MarketplaceProductPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
+  const [cartFeedback, setCartFeedback] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -127,8 +131,8 @@ export default function MarketplaceProductPage() {
         <span className="tz-current">{product.name}</span>
       </nav>
 
-      <section className="tz-product-layout">
-        <div className="tz-product-visual">
+      <motion.section className="tz-product-layout" initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.13 } } }}>
+        <motion.div className="tz-product-visual" variants={{ hidden: { opacity: 0, x: -28 }, show: { opacity: 1, x: 0 } }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}>
           <div className="tz-image-frame">
             <img src={product.image_url} alt={product.name} />
             <span className="tz-image-category">{product.category}</span>
@@ -137,9 +141,9 @@ export default function MarketplaceProductPage() {
           <p className="tz-image-caption">
             BUILT FOR THE GAME. MADE TO REPRESENT.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="tz-product-details">
+        <motion.div className="tz-product-details" variants={{ hidden: { opacity: 0, x: 28 }, show: { opacity: 1, x: 0 } }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}>
           <span className="tz-eyebrow">TURFZY · OFFICIAL MERCHANDISE</span>
           <h1>{product.name}</h1>
           <div className="tz-product-price">{inr(product.price_paise)}</div>
@@ -163,15 +167,18 @@ export default function MarketplaceProductPage() {
               </div>
               <div className="tz-size-options">
                 {product.sizes.map((size) => (
-                  <button
+                  <motion.button
                     key={size}
                     type="button"
                     className={selectedSize === size ? "selected" : ""}
                     onClick={() => setSelectedSize(size)}
                     aria-pressed={selectedSize === size}
+                    whileHover={{ y: -3, scale: 1.06 }}
+                    whileTap={{ scale: 0.94 }}
+                    layout
                   >
                     {size}
-                  </button>
+                  </motion.button>
                 ))}
               </div>
             </div>
@@ -183,12 +190,45 @@ export default function MarketplaceProductPage() {
           </div>
 
           <div className="tz-purchase-notice">
-            <span>COLLECTION PREVIEW</span>
+            <span>THE OFFICIAL COLLECTION</span>
             <p>
-              Online merchandise purchasing is not available yet. Product
-              selection here does not reserve stock or create an order.
+              Secure checkout powered by Razorpay. Your selected piece is
+              checked against live stock before payment.
             </p>
           </div>
+
+          <motion.button
+            type="button"
+            className="tz-add-to-bag"
+            disabled={
+              product.stock_quantity < 1 ||
+              (product.sizes.length > 0 && !selectedSize)
+            }
+            onClick={() => {
+              const result = addMarketplaceCartItem({
+                productId: product.id,
+                name: product.name,
+                imageUrl: product.image_url,
+                pricePaise: product.price_paise,
+                size: selectedSize,
+                quantity: 1,
+              });
+              setCartFeedback(result.message);
+            }}
+            whileHover={{ y: -3, boxShadow: "0 18px 42px rgba(201,169,107,.18)" }}
+            whileTap={{ scale: 0.985 }}
+          >
+            {product.stock_quantity < 1
+              ? "SOLD OUT"
+              : product.sizes.length > 0 && !selectedSize
+                ? "SELECT A SIZE TO CONTINUE"
+                : "ADD TO BAG"}
+            <span>→</span>
+          </motion.button>
+
+          {cartFeedback && (
+            <p className="tz-cart-feedback" role="status">{cartFeedback}</p>
+          )}
 
           <Link href="/marketplace#merchandise" className="tz-button">
             ← BACK TO COLLECTION
@@ -197,8 +237,8 @@ export default function MarketplaceProductPage() {
           <p className="tz-product-footnote">
             TURFZY · YOUR CITY. YOUR SQUAD. YOUR GAME.
           </p>
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
 
       {relatedProducts.length > 0 && (
         <section className="tz-related">
@@ -208,10 +248,10 @@ export default function MarketplaceProductPage() {
           </div>
           <div className="tz-related-grid">
             {relatedProducts.map((item) => (
+              <motion.div key={item.id} whileHover={{ y: -8, scale: 1.015 }} transition={{ duration: .3 }}>
               <Link
                 href={`/marketplace/${item.id}`}
                 className="tz-related-card"
-                key={item.id}
               >
                 <div className="tz-related-image">
                   <img src={item.image_url} alt={item.name} loading="lazy" />
@@ -220,10 +260,13 @@ export default function MarketplaceProductPage() {
                 <h3>{item.name}</h3>
                 <strong>{inr(item.price_paise)}</strong>
               </Link>
+              </motion.div>
             ))}
           </div>
         </section>
       )}
+
+      <MarketplaceCart />
 
       <footer className="tz-product-footer">
         TURFZY <span>—</span> THE GAME NEVER STOPS.
@@ -315,6 +358,13 @@ const styles = `
     letter-spacing: 2px;
     text-align: center;
     margin-top: 14px;
+  }
+  .tz-image-frame img { transition: transform .9s cubic-bezier(.2,.75,.25,1), filter .6s ease; }
+  .tz-image-frame:hover img { transform: scale(1.045); filter: contrast(1.04) saturate(1.08); }
+  .tz-add-to-bag { transition: box-shadow .3s, background .3s, transform .3s; }
+  .tz-size-options button:focus-visible, .tz-add-to-bag:focus-visible { outline:2px solid #e4ca8e; outline-offset:4px; }
+  @media (prefers-reduced-motion: reduce) {
+    .tz-product-page *, .tz-product-page *::before, .tz-product-page *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
   }
   .tz-product-details { padding-top: 18px; }
   .tz-product-details h1 {
@@ -426,6 +476,37 @@ const styles = `
     transition: .2s;
   }
   .tz-button:hover { background: #d2b779; color: #090907; }
+  .tz-add-to-bag {
+    width: min(100%, 470px);
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 18px;
+    padding: 0 20px;
+    border: 1px solid #d2b779;
+    background: linear-gradient(110deg, #a9874c, #e0c98e, #b28c4d);
+    color: #090907;
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 1.7px;
+    cursor: pointer;
+    transition: filter .2s, transform .2s;
+  }
+  .tz-add-to-bag:hover:not(:disabled) {
+    filter: brightness(1.12);
+    transform: translateY(-2px);
+  }
+  .tz-add-to-bag:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+  .tz-add-to-bag span { font-size: 17px; }
+  .tz-cart-feedback {
+    color: #d6bd89;
+    font-size: 10px;
+    letter-spacing: .5px;
+  }
   .tz-product-footnote {
     margin-top: 27px;
     color: #6f695e;
