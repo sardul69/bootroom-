@@ -464,7 +464,6 @@ export default function HomeCinematic() {
               className="br-cinematic-primary"
             >
               <span>FIND YOUR GAME</span>
-              <span className="br-action-arrow">↗</span>
             </Link>
 
             <Link
@@ -472,16 +471,13 @@ export default function HomeCinematic() {
               className="br-cinematic-secondary"
             >
               EXPLORE TURFS
-              <span>↗</span>
             </Link>
 
             <Link
               href="/marketplace"
               className="br-cinematic-market"
             >
-              <span className="br-market-symbol">✳</span>
               MARKETPLACE
-              <span>↗</span>
             </Link>
           </div>
         </div>
