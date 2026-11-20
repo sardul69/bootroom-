@@ -4397,3 +4397,96 @@ nav[aria-label="Main navigation"] a {
     transition: none !important;
   }
 }
+
+/* ============================================================
+   BOOTROOM — MOBILE MATCHDAY TICKER FIX
+   Single-line, seamless horizontal marquee.
+   ============================================================ */
+
+.br-locker-home .br-matchday-ticker {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  padding: 23px 0;
+  border-top: 1px solid rgba(169,132,77,.25);
+  border-bottom: 1px solid rgba(169,132,77,.25);
+  background: #17140f;
+  isolation: isolate;
+}
+
+.br-locker-home .br-matchday-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  max-width: none;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  will-change: transform;
+  animation: br-matchday-marquee 42s linear infinite;
+}
+
+.br-locker-home .br-matchday-track span {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: max-content;
+  white-space: nowrap;
+  color: #c4a46c;
+  font-size: clamp(15px, 2.1vw, 23px);
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -.025em;
+}
+
+.br-locker-home .br-matchday-track i {
+  display: inline-block;
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  margin: 0 25px;
+  border: 1px solid #c9a967;
+  transform: rotate(45deg);
+  background: rgba(201,169,103,.18);
+}
+
+@keyframes br-matchday-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-25%, 0, 0);
+  }
+}
+
+.br-locker-home .br-matchday-ticker:hover .br-matchday-track {
+  animation-play-state: paused;
+}
+
+@media (max-width: 700px) {
+  .br-locker-home .br-matchday-ticker {
+    padding: 25px 0;
+  }
+
+  .br-locker-home .br-matchday-track {
+    animation-duration: 34s;
+  }
+
+  .br-locker-home .br-matchday-track span {
+    font-size: 17px;
+  }
+
+  .br-locker-home .br-matchday-track i {
+    margin-left: 19px;
+    margin-right: 19px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .br-locker-home .br-matchday-track {
+    animation: none;
+    transform: none;
+  }
+}
+
