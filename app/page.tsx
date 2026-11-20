@@ -138,14 +138,6 @@ export default async function Home() {
               />
             </Link>
 
-            <nav
-              className="br-navlinks"
-              aria-label="Main navigation"
-            >
-              <Link href="/matches">Matches</Link>
-              <Link href="/turfs">Turfs</Link>
-              <Link href="/owner">Host a game</Link>
-            </nav>
 
             <div className="br-nav-actions">
 
