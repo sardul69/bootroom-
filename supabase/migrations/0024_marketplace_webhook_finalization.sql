@@ -63,11 +63,11 @@ begin
     );
   end if;
 
-  if v_order.status <> 'PENDING' then
-    return jsonb_build_object('ok', false, 'reason', 'ORDER_NOT_PAYABLE');
-  end if;
-
-  if v_order.hold_expires_at <= now() then
+  if v_order.status = 'EXPIRED'
+     or (
+       v_order.status = 'PENDING'
+       and v_order.hold_expires_at <= now()
+     ) then
     update public.marketplace_orders
     set status = 'RECONCILIATION_REQUIRED',
         razorpay_payment_id = p_razorpay_payment_id,
@@ -78,6 +78,10 @@ begin
       'ok', false,
       'reason', 'PAYMENT_AFTER_RESERVATION_EXPIRY'
     );
+  end if;
+
+  if v_order.status <> 'PENDING' then
+    return jsonb_build_object('ok', false, 'reason', 'ORDER_NOT_PAYABLE');
   end if;
 
   -- Lock products in deterministic order to avoid concurrent stock races.
