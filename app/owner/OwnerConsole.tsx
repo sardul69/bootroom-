@@ -1220,7 +1220,12 @@ export default function OwnerConsole({
           ================================================= */}
 
           {activeSection === "marketplace" && (
-            <OwnerShopManager />
+            <>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+                <a href="/owner/marketplace-support" className="btn green">MARKETPLACE SUPPORT INBOX</a>
+              </div>
+              <OwnerShopManager />
+            </>
           )}
 
           {(
