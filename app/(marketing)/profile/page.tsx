@@ -201,6 +201,13 @@ export default async function ProfilePage() {
       <div className="container" style={{ maxWidth: 900, margin: "0 auto" }}>
         <PlayerDashboard />
 
+        <section className="panel" style={{ padding: 20, marginTop: 24 }}>
+          <p className="label">BOOTROOM MARKETPLACE</p>
+          <h2 style={{ fontSize: 22, margin: "8px 0" }}>Your orders</h2>
+          <p className="muted" style={{ marginBottom: 14 }}>View purchases, follow delivery updates and contact BOOTROOM support.</p>
+          <Link className="btn green" href="/my-orders">VIEW ORDER HISTORY</Link>
+        </section>
+
         <section id="booking-history" style={{ marginTop: 32 }}>
           <p className="label">YOUR BOOKING PASSES</p>
           <h2 style={{ fontSize: 29, margin: "8px 0 6px" }}>
